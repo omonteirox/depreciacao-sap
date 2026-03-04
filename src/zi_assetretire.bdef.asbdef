@@ -1,0 +1,71 @@
+managed implementation in class ZBP_I_AssetRetire unique;
+strict ( 2 );
+with draft;
+
+define behavior for ZI_AssetRetire alias AssetRetire
+persistent table zasset_retire
+draft table zasset_retire_d
+etag master LocalLastChanged
+lock master total etag LastChangedAt
+authorization master ( global )
+with additional save
+{
+  field ( readonly )
+    RetireUuid,
+    AssetDescription, AssetClass,
+    ProcessStatus, ProcessMsg, RefDocNumber,
+    StatusCriticality,
+    CreatedBy, CreatedAt, LastChangedBy, LastChangedAt, LocalLastChanged;
+
+  field ( numbering : managed )
+    RetireUuid;
+
+  create;
+  update;
+  delete;
+
+  // Importar ativos da base SAP (I_FixedAsset)
+  static action importAssets parameter ZA_ImportParam result [0..*] $self;
+
+  // Executar baixa via API CE_FIXEDASSETRETIREMENT_0001
+  action ( features : instance ) executeRetirement result [1] $self;
+
+  // Defaults
+  determination setDefaults on modify { create; }
+
+  // Validations
+  validation validateAsset on save { create; update;
+    field CompanyCode, MasterFixedAsset; }
+
+  // Draft standard actions
+  draft action Edit;
+  draft action Activate optimized;
+  draft action Discard;
+  draft action Resume;
+  draft determine action Prepare;
+
+  mapping for zasset_retire
+  {
+    RetireUuid         = retire_uuid;
+    CompanyCode        = company_code;
+    MasterFixedAsset   = master_fixed_asset;
+    FixedAsset         = fixed_asset;
+    AssetDescription   = asset_description;
+    AssetClass         = asset_class;
+    DocumentDate       = document_date;
+    PostingDate        = posting_date;
+    AssetValueDate     = asset_value_date;
+    RetirementType     = retirement_type;
+    RetirementRatio    = retirement_ratio;
+    HeaderText         = header_text;
+    ItemText           = item_text;
+    ProcessStatus      = process_status;
+    ProcessMsg         = process_msg;
+    RefDocNumber       = ref_doc_number;
+    CreatedBy          = created_by;
+    CreatedAt          = created_at;
+    LastChangedBy      = last_changed_by;
+    LastChangedAt      = last_changed_at;
+    LocalLastChanged   = local_last_changed;
+  }
+}

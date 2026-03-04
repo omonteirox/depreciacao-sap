@@ -1,0 +1,98 @@
+@Metadata.layer: #CUSTOMER
+@UI.headerInfo: {
+  typeName: 'Baixa de Ativo',
+  typeNamePlural: 'Baixas de Ativos',
+  title: { type: #STANDARD, value: 'MasterFixedAsset' },
+  description: { type: #STANDARD, value: 'AssetDescription' }
+}
+annotate entity ZC_AssetRetire with
+{
+
+  @UI.facet: [
+    { id: 'General', purpose: #STANDARD, type: #IDENTIFICATION_REFERENCE,
+      label: 'Dados do Ativo', position: 10 },
+    { id: 'Retirement', purpose: #STANDARD, type: #FIELDGROUP_REFERENCE,
+      targetQualifier: 'Retirement', label: 'Dados da Baixa', position: 20 },
+    { id: 'Status', purpose: #STANDARD, type: #FIELDGROUP_REFERENCE,
+      targetQualifier: 'Status', label: 'Status do Processamento', position: 30 }
+  ]
+
+  @UI: { lineItem: [{ position: 10, importance: #HIGH }],
+         identification: [{ position: 10 }],
+         selectionField: [{ position: 10 }] }
+  CompanyCode;
+
+  @UI: { lineItem: [{ position: 20, importance: #HIGH }],
+         identification: [{ position: 20 }],
+         selectionField: [{ position: 20 }] }
+  MasterFixedAsset;
+
+  @UI: { lineItem: [{ position: 30, importance: #HIGH }],
+         identification: [{ position: 30 }] }
+  FixedAsset;
+
+  @UI: { lineItem: [{ position: 40, importance: #HIGH }],
+         identification: [{ position: 40 }] }
+  AssetDescription;
+
+  @UI: { lineItem: [{ position: 50, importance: #MEDIUM }],
+         identification: [{ position: 50 }] }
+  AssetClass;
+
+  @UI: { fieldGroup: [{ qualifier: 'Retirement', position: 10 }] }
+  DocumentDate;
+
+  @UI: { fieldGroup: [{ qualifier: 'Retirement', position: 20 }] }
+  PostingDate;
+
+  @UI: { fieldGroup: [{ qualifier: 'Retirement', position: 30 }] }
+  AssetValueDate;
+
+  @UI: { fieldGroup: [{ qualifier: 'Retirement', position: 40 }] }
+  RetirementType;
+
+  @UI: { lineItem: [{ position: 60, importance: #MEDIUM }],
+         fieldGroup: [{ qualifier: 'Retirement', position: 50 }] }
+  RetirementRatio;
+
+  @UI: { fieldGroup: [{ qualifier: 'Retirement', position: 60 }] }
+  HeaderText;
+
+  @UI: { fieldGroup: [{ qualifier: 'Retirement', position: 70 }] }
+  ItemText;
+
+  @UI: { lineItem: [{ position: 70, importance: #HIGH,
+                       criticality: 'StatusCriticality' }],
+         fieldGroup: [{ qualifier: 'Status', position: 10,
+                        criticality: 'StatusCriticality' }] }
+  ProcessStatus;
+
+  @UI: { fieldGroup: [{ qualifier: 'Status', position: 20 }] }
+  ProcessMsg;
+
+  @UI: { lineItem: [{ position: 80, importance: #MEDIUM }],
+         fieldGroup: [{ qualifier: 'Status', position: 30 }] }
+  RefDocNumber;
+
+  @UI.hidden: true
+  StatusCriticality;
+
+  @UI.hidden: true
+  RetireUuid;
+
+  @UI: { lineItem: [{ position: 90, importance: #LOW }] }
+  CreatedBy;
+
+  @UI: { lineItem: [{ position: 100, importance: #LOW }] }
+  CreatedAt;
+
+  @UI.hidden: true
+  LastChangedBy;
+
+  @UI.hidden: true
+  LastChangedAt;
+
+  @UI.hidden: true
+  LocalLastChanged;
+
+}

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+ <asx:values>
+  <DATA>
+   <MASTER_LANGUAGE>E</MASTER_LANGUAGE>
+   <STARTING_FOLDER>/src/</STARTING_FOLDER>
+   <FOLDER_LOGIC>PREFIX</FOLDER_LOGIC>
+   <IGNORE>
+    <item>/.gitignore</item>
+    <item>/LICENSE</item>
+    <item>/README.md</item>
+    <item>/.agents/</item>
+    <item>/.claude/</item>
+    <item>/.cursor/</item>
+    <item>/.github/</item>
+    <item>/CE_FIXEDASSETRETIREMENT_0001.json</item>
+    <item>/CLAUDE.md</item>
+    <item>/*.png</item>
+    <item>/*.xlsx</item>
+   </IGNORE>
+  </DATA>
+ </asx:values>
+</asx:abap>

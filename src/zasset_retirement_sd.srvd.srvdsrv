@@ -1,0 +1,4 @@
+@EndUserText.label: 'Baixa em Massa de Ativos Imobilizados'
+define service ZASSET_RETIREMENT_SD {
+  expose ZC_AssetRetire as AssetRetire;
+}

@@ -1,0 +1,9 @@
+CLASS zbp_i_assetretire DEFINITION
+  PUBLIC
+  ABSTRACT
+  FINAL
+  FOR BEHAVIOR OF zi_assetretire.
+ENDCLASS.
+
+CLASS zbp_i_assetretire IMPLEMENTATION.
+ENDCLASS.
