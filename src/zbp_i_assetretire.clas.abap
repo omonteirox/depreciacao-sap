@@ -1,9 +1,13 @@
-CLASS zbp_i_assetretire DEFINITION
-  PUBLIC
-  ABSTRACT
-  FINAL
-  FOR BEHAVIOR OF zi_assetretire.
+class ZBP_I_ASSETRETIRE definition
+  public
+  create private .
+
+public section.
+protected section.
+private section.
 ENDCLASS.
 
-CLASS zbp_i_assetretire IMPLEMENTATION.
+
+
+CLASS ZBP_I_ASSETRETIRE IMPLEMENTATION.
 ENDCLASS.
