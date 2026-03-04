@@ -17,7 +17,8 @@ annotate entity ZC_AssetRetire with
       targetQualifier: 'Status', label: 'Status do Processamento', position: 30 }
   ]
 
-  @UI: { lineItem: [{ position: 10, importance: #HIGH }],
+  @UI: { lineItem: [{ position: 10, importance: #HIGH },
+                    { type: #FOR_ACTION, dataAction: 'importAssets', label: 'Importar Ativos' }],
          identification: [{ position: 10 }],
          selectionField: [{ position: 10 }] }
   CompanyCode;

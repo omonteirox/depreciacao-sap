@@ -24,7 +24,21 @@ ENDCLASS.
 CLASS lhc_assetretire IMPLEMENTATION.
 
   METHOD get_global_authorizations.
-    result = VALUE #( ( %field-ProcessStatus = if_abap_behv=>auth-allowed ) ).
+    IF requested_authorizations-%create EQ if_abap_behv=>mk-on.
+      result-%create = if_abap_behv=>auth-allowed.
+    ENDIF.
+    IF requested_authorizations-%update EQ if_abap_behv=>mk-on.
+      result-%update = if_abap_behv=>auth-allowed.
+    ENDIF.
+    IF requested_authorizations-%delete EQ if_abap_behv=>mk-on.
+      result-%delete = if_abap_behv=>auth-allowed.
+    ENDIF.
+    IF requested_authorizations-%action-executeRetirement EQ if_abap_behv=>mk-on.
+      result-%action-executeRetirement = if_abap_behv=>auth-allowed.
+    ENDIF.
+    IF requested_authorizations-%action-importAssets EQ if_abap_behv=>mk-on.
+      result-%action-importAssets = if_abap_behv=>auth-allowed.
+    ENDIF.
   ENDMETHOD.
 
   METHOD get_instance_features.
@@ -101,7 +115,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD importassets.
-    DATA(lv_company) = keys[ 1 ]-%param-CompanyCode.
+    DATA(lv_company) = VALUE #( keys[ 1 ]-%param-CompanyCode OPTIONAL ).
 
     IF lv_company IS INITIAL.
       APPEND VALUE #( %msg = new_message_with_text(
@@ -176,9 +190,17 @@ CLASS lhc_assetretire IMPLEMENTATION.
       FAILED failed
       REPORTED reported.
 
-    result = VALUE #( FOR <m> IN mapped-assetretire
-      ( %cid = <m>-%cid
-        %param = CORRESPONDING #( <m> ) ) ).
+    READ ENTITIES OF zi_assetretire IN LOCAL MODE
+      ENTITY AssetRetire
+      ALL FIELDS WITH CORRESPONDING #( mapped-assetretire )
+      RESULT DATA(lt_read_created).
+
+    LOOP AT lt_read_created INTO DATA(ls_created).
+      READ TABLE mapped-assetretire INTO DATA(ls_map)
+        WITH KEY %tky = ls_created-%tky.
+      APPEND VALUE #( %cid   = ls_map-%cid
+                      %param = ls_created ) TO result.
+    ENDLOOP.
 
     APPEND VALUE #( %msg = new_message_with_text(
       severity = if_abap_behv_message=>severity-success
