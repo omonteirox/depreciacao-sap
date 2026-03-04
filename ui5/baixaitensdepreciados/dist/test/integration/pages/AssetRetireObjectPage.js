@@ -1,0 +1,2 @@
+sap.ui.define(["sap/fe/test/ObjectPage"],function(e){"use strict";var t={actions:{},assertions:{}};return new e({appId:"assy.gm.baixadepreciacao.baixaitensdepreciados",componentId:"AssetRetireObjectPage",contextPath:"/AssetRetire"},t)});
+//# sourceMappingURL=AssetRetireObjectPage.js.map
