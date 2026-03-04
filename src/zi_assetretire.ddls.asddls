@@ -20,12 +20,12 @@ define root view entity ZI_AssetRetire
       process_msg            as ProcessMsg,
       ref_doc_number         as RefDocNumber,
 
-      case process_status
+      cast( case process_status
         when 'S' then 3
         when 'E' then 1
         when 'P' then 2
         else 0
-      end                    as StatusCriticality,
+      end as abap.int4 )       as StatusCriticality,
 
       @Semantics.user.createdBy: true
       created_by             as CreatedBy,
