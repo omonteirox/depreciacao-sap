@@ -1,2 +1,0 @@
-sap.ui.define(["sap/fe/test/JourneyRunner","assy/gm/baixadepreciacao/baixaitensdepreciados/test/integration/pages/AssetRetireList","assy/gm/baixadepreciacao/baixaitensdepreciados/test/integration/pages/AssetRetireObjectPage"],function(e,a,s){"use strict";var t=new e({launchUrl:sap.ui.require.toUrl("assy/gm/baixadepreciacao/baixaitensdepreciados")+"/test/flp.html#app-preview",pages:{onTheAssetRetireList:a,onTheAssetRetireObjectPage:s},async:true});return t});
-//# sourceMappingURL=JourneyRunner.js.map

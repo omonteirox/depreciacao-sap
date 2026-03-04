@@ -1,2 +1,0 @@
-sap.ui.define(["sap/fe/test/ListReport"],function(e){"use strict";var t={actions:{},assertions:{}};return new e({appId:"assy.gm.baixadepreciacao.baixaitensdepreciados",componentId:"AssetRetireList",contextPath:"/AssetRetire"},t)});
-//# sourceMappingURL=AssetRetireList.js.map
