@@ -472,7 +472,9 @@ CLASS zsc_fixedasset DEFINITION
 ENDCLASS.
 
 
-CLASS zsc_fixedasset IMPLEMENTATION.
+
+CLASS ZSC_FIXEDASSET IMPLEMENTATION.
+
 
   METHOD /iwbep/if_v4_mp_basic_pm~define.
 
@@ -487,6 +489,157 @@ CLASS zsc_fixedasset IMPLEMENTATION.
     def_fixed_asset_rtrmt_valuat_2( ).
     def_post( ).
     define_primitive_types( ).
+
+  ENDMETHOD.
+
+
+  METHOD define_primitive_types.
+
+    DATA lo_primitive_type TYPE REF TO /iwbep/if_v4_pm_prim_type.
+
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'ACCOUNTING_DOCUMENT_HEADER'
+                            iv_element             = VALUE tys_types_for_prim_types-accounting_document_header( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'ACCOUNTING_DOCUMENT_TYPE'
+                            iv_element             = VALUE tys_types_for_prim_types-accounting_document_type( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'ASSET_VALUE_DATE'
+                            iv_element             = VALUE tys_types_for_prim_types-asset_value_date( ) ).
+    lo_primitive_type->set_edm_type( 'Date' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'ASSIGNMENT_REFERENCE'
+                            iv_element             = VALUE tys_types_for_prim_types-assignment_reference( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'AST_REVENUE_AMOUNT_IN_TRAN'
+                            iv_element             = VALUE tys_types_for_prim_types-ast_revenue_amount_in_tran( ) ).
+    lo_primitive_type->set_edm_type( 'Decimal' ) ##NO_TEXT.
+    lo_primitive_type->set_precision( 23 ) ##NUMBER_OK.
+    lo_primitive_type->set_scale_variable( ).
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'AST_RTRMT_AMT_IN_TRANS_CRC'
+                            iv_element             = VALUE tys_types_for_prim_types-ast_rtrmt_amt_in_trans_crc( ) ).
+    lo_primitive_type->set_edm_type( 'Decimal' ) ##NO_TEXT.
+    lo_primitive_type->set_precision( 23 ) ##NUMBER_OK.
+    lo_primitive_type->set_scale_variable( ).
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'BASE_UNIT_ISOCODE'
+                            iv_element             = VALUE tys_types_for_prim_types-base_unit_isocode( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'BASE_UNIT_SAPCODE'
+                            iv_element             = VALUE tys_types_for_prim_types-base_unit_sapcode( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'BUSINESS_TRANSACTION_TYPE'
+                            iv_element             = VALUE tys_types_for_prim_types-business_transaction_type( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'COMPANY_CODE'
+                            iv_element             = VALUE tys_types_for_prim_types-company_code( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'DOCUMENT_DATE'
+                            iv_element             = VALUE tys_types_for_prim_types-document_date( ) ).
+    lo_primitive_type->set_edm_type( 'Date' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'DOCUMENT_ITEM_TEXT'
+                            iv_element             = VALUE tys_types_for_prim_types-document_item_text( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'DOCUMENT_REFERENCE_ID'
+                            iv_element             = VALUE tys_types_for_prim_types-document_reference_id( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'FIXED_ASSET'
+                            iv_element             = VALUE tys_types_for_prim_types-fixed_asset( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'FIXED_ASSET_RETIREMENT_T_2'
+                            iv_element             = VALUE tys_types_for_prim_types-fixed_asset_retirement_t_2( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'FIXED_ASSET_YEAR_OF_ACQN_C'
+                            iv_element             = VALUE tys_types_for_prim_types-fixed_asset_year_of_acqn_c( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'FXD_AST_RETIREMENT_RATIO_I'
+                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_retirement_ratio_i( ) ).
+    lo_primitive_type->set_edm_type( 'Decimal' ) ##NO_TEXT.
+    lo_primitive_type->set_precision( 5 ) ##NUMBER_OK.
+    lo_primitive_type->set_scale( 2 ) ##NUMBER_OK.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'FXD_AST_RETIREMENT_REVENUE'
+                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_retirement_revenue( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'FXD_AST_RETIREMENT_TRANS_C'
+                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_retirement_trans_c( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'FXD_AST_REVN_DETN_DEPR_ARE'
+                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_revn_detn_depr_are( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'FXD_AST_RTRMT_QUANTITY_IN'
+                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_rtrmt_quantity_in( ) ).
+    lo_primitive_type->set_edm_type( 'Decimal' ) ##NO_TEXT.
+    lo_primitive_type->set_precision( 13 ) ##NUMBER_OK.
+    lo_primitive_type->set_scale( 3 ) ##NUMBER_OK.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'FXD_AST_RTRMT_REVN_CURRENC'
+                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_rtrmt_revn_currenc( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'FXD_AST_RTRMT_REVN_TRANS_C'
+                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_rtrmt_revn_trans_c( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'MASTER_FIXED_ASSET'
+                            iv_element             = VALUE tys_types_for_prim_types-master_fixed_asset( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'POSTING_DATE'
+                            iv_element             = VALUE tys_types_for_prim_types-posting_date( ) ).
+    lo_primitive_type->set_edm_type( 'Date' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'REFERENCE_DOCUMENT_ITEM'
+                            iv_element             = VALUE tys_types_for_prim_types-reference_document_item( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+
+    lo_primitive_type = mo_model->create_primitive_type_by_elem(
+                            iv_primitive_type_name = 'TRADING_PARTNER'
+                            iv_element             = VALUE tys_types_for_prim_types-trading_partner( ) ).
+    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
 
   ENDMETHOD.
 
@@ -546,62 +699,6 @@ CLASS zsc_fixedasset IMPLEMENTATION.
     lo_primitive_property->set_edm_name( 'AssetDepreciationArea' ) ##NO_TEXT.
     lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
     lo_primitive_property->set_max_length( 2 ) ##NUMBER_OK.
-
-  ENDMETHOD.
-
-
-  METHOD def_sap_message.
-
-    DATA:
-      lo_complex_property    TYPE REF TO /iwbep/if_v4_pm_cplx_prop,
-      lo_complex_type        TYPE REF TO /iwbep/if_v4_pm_cplx_type,
-      lo_navigation_property TYPE REF TO /iwbep/if_v4_pm_nav_prop,
-      lo_primitive_property  TYPE REF TO /iwbep/if_v4_pm_prim_prop.
-
-
-    lo_complex_type = mo_model->create_complex_type_by_struct(
-                                    iv_complex_type_name      = 'SAP_MESSAGE'
-                                    is_structure              = VALUE tys_sap_message( )
-                                    iv_do_gen_prim_props         = abap_true
-                                    iv_do_gen_prim_prop_colls    = abap_true
-                                    iv_do_add_conv_to_prim_props = abap_true ).
-
-    lo_complex_type->set_edm_name( 'SAP__Message' ) ##NO_TEXT.
-    lo_complex_type->create_complex_prop_for_vcs( 'VALUE_CONTROLS' ).
-
-
-    lo_primitive_property = lo_complex_type->get_primitive_property( 'CODE' ).
-    lo_primitive_property->set_edm_name( 'code' ) ##NO_TEXT.
-    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_property = lo_complex_type->get_primitive_property( 'MESSAGE' ).
-    lo_primitive_property->set_edm_name( 'message' ) ##NO_TEXT.
-    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_property = lo_complex_type->get_primitive_property( 'TARGET' ).
-    lo_primitive_property->set_edm_name( 'target' ) ##NO_TEXT.
-    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
-    lo_primitive_property->set_is_nullable( ).
-    lo_primitive_property->create_vcs_value_control( ).
-
-    lo_primitive_property = lo_complex_type->get_primitive_property( 'ADDITIONAL_TARGETS' ).
-    lo_primitive_property->set_edm_name( 'additionalTargets' ) ##NO_TEXT.
-    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
-    lo_primitive_property->set_is_collection( ).
-
-    lo_primitive_property = lo_complex_type->get_primitive_property( 'TRANSITION' ).
-    lo_primitive_property->set_edm_name( 'transition' ) ##NO_TEXT.
-    lo_primitive_property->set_edm_type( 'Boolean' ) ##NO_TEXT.
-
-    lo_primitive_property = lo_complex_type->get_primitive_property( 'NUMERIC_SEVERITY' ).
-    lo_primitive_property->set_edm_name( 'numericSeverity' ) ##NO_TEXT.
-    lo_primitive_property->set_edm_type( 'Byte' ) ##NO_TEXT.
-
-    lo_primitive_property = lo_complex_type->get_primitive_property( 'LONGTEXT_URL' ).
-    lo_primitive_property->set_edm_name( 'longtextUrl' ) ##NO_TEXT.
-    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
-    lo_primitive_property->set_is_nullable( ).
-    lo_primitive_property->create_vcs_value_control( ).
 
   ENDMETHOD.
 
@@ -1088,154 +1185,58 @@ CLASS zsc_fixedasset IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD define_primitive_types.
+  METHOD def_sap_message.
 
-    DATA lo_primitive_type TYPE REF TO /iwbep/if_v4_pm_prim_type.
+    DATA:
+      lo_complex_property    TYPE REF TO /iwbep/if_v4_pm_cplx_prop,
+      lo_complex_type        TYPE REF TO /iwbep/if_v4_pm_cplx_type,
+      lo_navigation_property TYPE REF TO /iwbep/if_v4_pm_nav_prop,
+      lo_primitive_property  TYPE REF TO /iwbep/if_v4_pm_prim_prop.
 
 
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'ACCOUNTING_DOCUMENT_HEADER'
-                            iv_element             = VALUE tys_types_for_prim_types-accounting_document_header( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_complex_type = mo_model->create_complex_type_by_struct(
+                                    iv_complex_type_name      = 'SAP_MESSAGE'
+                                    is_structure              = VALUE tys_sap_message( )
+                                    iv_do_gen_prim_props         = abap_true
+                                    iv_do_gen_prim_prop_colls    = abap_true
+                                    iv_do_add_conv_to_prim_props = abap_true ).
 
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'ACCOUNTING_DOCUMENT_TYPE'
-                            iv_element             = VALUE tys_types_for_prim_types-accounting_document_type( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_complex_type->set_edm_name( 'SAP__Message' ) ##NO_TEXT.
+    lo_complex_type->create_complex_prop_for_vcs( 'VALUE_CONTROLS' ).
 
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'ASSET_VALUE_DATE'
-                            iv_element             = VALUE tys_types_for_prim_types-asset_value_date( ) ).
-    lo_primitive_type->set_edm_type( 'Date' ) ##NO_TEXT.
 
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'ASSIGNMENT_REFERENCE'
-                            iv_element             = VALUE tys_types_for_prim_types-assignment_reference( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property = lo_complex_type->get_primitive_property( 'CODE' ).
+    lo_primitive_property->set_edm_name( 'code' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
 
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'AST_REVENUE_AMOUNT_IN_TRAN'
-                            iv_element             = VALUE tys_types_for_prim_types-ast_revenue_amount_in_tran( ) ).
-    lo_primitive_type->set_edm_type( 'Decimal' ) ##NO_TEXT.
-    lo_primitive_type->set_precision( 23 ) ##NUMBER_OK.
-    lo_primitive_type->set_scale_variable( ).
+    lo_primitive_property = lo_complex_type->get_primitive_property( 'MESSAGE' ).
+    lo_primitive_property->set_edm_name( 'message' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
 
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'AST_RTRMT_AMT_IN_TRANS_CRC'
-                            iv_element             = VALUE tys_types_for_prim_types-ast_rtrmt_amt_in_trans_crc( ) ).
-    lo_primitive_type->set_edm_type( 'Decimal' ) ##NO_TEXT.
-    lo_primitive_type->set_precision( 23 ) ##NUMBER_OK.
-    lo_primitive_type->set_scale_variable( ).
+    lo_primitive_property = lo_complex_type->get_primitive_property( 'TARGET' ).
+    lo_primitive_property->set_edm_name( 'target' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property->set_is_nullable( ).
+    lo_primitive_property->create_vcs_value_control( ).
 
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'BASE_UNIT_ISOCODE'
-                            iv_element             = VALUE tys_types_for_prim_types-base_unit_isocode( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property = lo_complex_type->get_primitive_property( 'ADDITIONAL_TARGETS' ).
+    lo_primitive_property->set_edm_name( 'additionalTargets' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property->set_is_collection( ).
 
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'BASE_UNIT_SAPCODE'
-                            iv_element             = VALUE tys_types_for_prim_types-base_unit_sapcode( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property = lo_complex_type->get_primitive_property( 'TRANSITION' ).
+    lo_primitive_property->set_edm_name( 'transition' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'Boolean' ) ##NO_TEXT.
 
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'BUSINESS_TRANSACTION_TYPE'
-                            iv_element             = VALUE tys_types_for_prim_types-business_transaction_type( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property = lo_complex_type->get_primitive_property( 'NUMERIC_SEVERITY' ).
+    lo_primitive_property->set_edm_name( 'numericSeverity' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'Byte' ) ##NO_TEXT.
 
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'COMPANY_CODE'
-                            iv_element             = VALUE tys_types_for_prim_types-company_code( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'DOCUMENT_DATE'
-                            iv_element             = VALUE tys_types_for_prim_types-document_date( ) ).
-    lo_primitive_type->set_edm_type( 'Date' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'DOCUMENT_ITEM_TEXT'
-                            iv_element             = VALUE tys_types_for_prim_types-document_item_text( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'DOCUMENT_REFERENCE_ID'
-                            iv_element             = VALUE tys_types_for_prim_types-document_reference_id( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'FIXED_ASSET'
-                            iv_element             = VALUE tys_types_for_prim_types-fixed_asset( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'FIXED_ASSET_RETIREMENT_T_2'
-                            iv_element             = VALUE tys_types_for_prim_types-fixed_asset_retirement_t_2( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'FIXED_ASSET_YEAR_OF_ACQN_C'
-                            iv_element             = VALUE tys_types_for_prim_types-fixed_asset_year_of_acqn_c( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'FXD_AST_RETIREMENT_RATIO_I'
-                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_retirement_ratio_i( ) ).
-    lo_primitive_type->set_edm_type( 'Decimal' ) ##NO_TEXT.
-    lo_primitive_type->set_precision( 5 ) ##NUMBER_OK.
-    lo_primitive_type->set_scale( 2 ) ##NUMBER_OK.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'FXD_AST_RETIREMENT_REVENUE'
-                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_retirement_revenue( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'FXD_AST_RETIREMENT_TRANS_C'
-                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_retirement_trans_c( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'FXD_AST_REVN_DETN_DEPR_ARE'
-                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_revn_detn_depr_are( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'FXD_AST_RTRMT_QUANTITY_IN'
-                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_rtrmt_quantity_in( ) ).
-    lo_primitive_type->set_edm_type( 'Decimal' ) ##NO_TEXT.
-    lo_primitive_type->set_precision( 13 ) ##NUMBER_OK.
-    lo_primitive_type->set_scale( 3 ) ##NUMBER_OK.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'FXD_AST_RTRMT_REVN_CURRENC'
-                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_rtrmt_revn_currenc( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'FXD_AST_RTRMT_REVN_TRANS_C'
-                            iv_element             = VALUE tys_types_for_prim_types-fxd_ast_rtrmt_revn_trans_c( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'MASTER_FIXED_ASSET'
-                            iv_element             = VALUE tys_types_for_prim_types-master_fixed_asset( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'POSTING_DATE'
-                            iv_element             = VALUE tys_types_for_prim_types-posting_date( ) ).
-    lo_primitive_type->set_edm_type( 'Date' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'REFERENCE_DOCUMENT_ITEM'
-                            iv_element             = VALUE tys_types_for_prim_types-reference_document_item( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
-
-    lo_primitive_type = mo_model->create_primitive_type_by_elem(
-                            iv_primitive_type_name = 'TRADING_PARTNER'
-                            iv_element             = VALUE tys_types_for_prim_types-trading_partner( ) ).
-    lo_primitive_type->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property = lo_complex_type->get_primitive_property( 'LONGTEXT_URL' ).
+    lo_primitive_property->set_edm_name( 'longtextUrl' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property->set_is_nullable( ).
+    lo_primitive_property->create_vcs_value_control( ).
 
   ENDMETHOD.
-
 ENDCLASS.

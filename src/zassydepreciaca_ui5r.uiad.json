@@ -1,0 +1,35 @@
+{
+  "formatVersion": "2",
+  "header": {
+    "description": "An SAP Fiori application.",
+    "originalLanguage": "en",
+    "abapLanguageVersion": "cloudDevelopment"
+  },
+  "generalInformation": {
+    "appType": "ui5",
+    "catalogId": "SAP_TC_UI5_REPO_UIAD",
+    "targetMappingTitle": "Baixa depreciação"
+  },
+  "ui5AppDetails": {
+    "appId": "assy.gm.baixadepreciacao.baixaitensdepreciados"
+  },
+  "navigation": {
+    "targetMappingId": "UI5R_66A12265536BF81C5282BACE0F2C08562113A179_TM",
+    "semanticObject": "baixadepreciados",
+    "action": "manage",
+    "desktop": true,
+    "tablet": true,
+    "phone": true
+  },
+  "tiles": [
+    {
+      "id": "UI5R_66A12265536BF81C5282BACE0F2C08562113A179_AL",
+      "tileType": "static",
+      "isDefault": true,
+      "standard": {
+        "title": "Baixa depreciação",
+        "subtitle": "Baixa nos itens depreciados"
+      }
+    }
+  ]
+}
