@@ -199,6 +199,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
       READ TABLE mapped-assetretire INTO DATA(ls_map)
         WITH KEY %tky = ls_created-%tky.
       APPEND VALUE #( %cid   = ls_map-%cid
+                      %tky   = ls_created-%tky
                       %param = ls_created ) TO result.
     ENDLOOP.
 
