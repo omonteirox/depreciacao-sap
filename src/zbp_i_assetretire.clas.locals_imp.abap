@@ -177,8 +177,8 @@ CLASS lhc_assetretire IMPLEMENTATION.
       REPORTED reported.
 
     result = VALUE #( FOR <m> IN mapped-assetretire
-      ( %cid_ref = <m>-%cid
-        %key     = <m>-%key ) ).
+      ( %cid = <m>-%cid
+        %param = CORRESPONDING #( <m> ) ) ).
 
     APPEND VALUE #( %msg = new_message_with_text(
       severity = if_abap_behv_message=>severity-success
