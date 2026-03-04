@@ -3,9 +3,11 @@
     <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
         <asx:values>
             <DDLX>
-                <DDLXNAME>ZC_ASSETRETIRE</DDLXNAME>
-                <DDLANGUAGE>E</DDLANGUAGE>
-                <DDTEXT>MDE - Baixa de Ativo Imobilizado</DDTEXT>
+                <METADATA>
+                    <NAME>ZC_ASSETRETIRE</NAME>
+                    <DESCRIPTION>MDE - Baixa de Ativo Imobilizado</DESCRIPTION>
+                    <MASTER_LANGUAGE>EN</MASTER_LANGUAGE>
+                </METADATA>
             </DDLX>
         </asx:values>
     </asx:abap>

@@ -3,9 +3,16 @@
     <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
         <asx:values>
             <BDEF>
-                <BDEF_NAME>ZC_ASSETRETIRE</BDEF_NAME>
-                <DDLANGUAGE>E</DDLANGUAGE>
-                <DDTEXT>Projection Behavior - Asset Retirement</DDTEXT>
+                <NAME>ZC_ASSETRETIRE</NAME>
+                <TYPE>BDEF/BDO</TYPE>
+                <DESCRIPTION>Projection Behavior - Asset Retirement</DESCRIPTION>
+                <LANGUAGE>EN</LANGUAGE>
+                <MASTER_LANGUAGE>EN</MASTER_LANGUAGE>
+                <ABAP_LANGU_VERSION>5</ABAP_LANGU_VERSION>
+                <SOURCE_URI>./zc_assetretire/source/main</SOURCE_URI>
+                <SOURCE_TYPE>ABAP_SOURCE</SOURCE_TYPE>
+                <SOURCE_FIXED_POINT_ARITHMETIC>true</SOURCE_FIXED_POINT_ARITHMETIC>
+                <SOURCE_UNICODE_CHECKS_ACTIVE>true</SOURCE_UNICODE_CHECKS_ACTIVE>
             </BDEF>
         </asx:values>
     </asx:abap>

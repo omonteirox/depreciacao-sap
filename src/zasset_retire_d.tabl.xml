@@ -60,9 +60,9 @@
                 </DD03P>
                 <DD03P>
                     <FIELDNAME>ASSETCLASS</FIELDNAME>
-                    <ROLLNAME>ANLKL</ROLLNAME>
                     <ADMINFIELD>0</ADMINFIELD>
-                    <COMPTYPE>E</COMPTYPE>
+                    <DATATYPE>CHAR</DATATYPE>
+                    <LENG>000008</LENG>
                 </DD03P>
                 <DD03P>
                     <FIELDNAME>DOCUMENTDATE</FIELDNAME>
