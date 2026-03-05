@@ -346,27 +346,11 @@ ENDCLASS.
 CLASS lsc_zi_assetretire IMPLEMENTATION.
 
   METHOD save_modified.
-    GET TIME STAMP FIELD DATA(lv_ts).
-
-    IF create-assetretire IS NOT INITIAL.
-      DATA(lv_user) = cl_abap_context_info=>get_user_technical_name( ).
-      LOOP AT create-assetretire ASSIGNING FIELD-SYMBOL(<cr>).
-        <cr>-CreatedBy         = lv_user.
-        <cr>-CreatedAt         = lv_ts.
-        <cr>-LastChangedBy     = lv_user.
-        <cr>-LastChangedAt     = lv_ts.
-        <cr>-LocalLastChanged  = lv_ts.
-      ENDLOOP.
-    ENDIF.
-
-    IF update-assetretire IS NOT INITIAL.
-      DATA(lv_user_upd) = cl_abap_context_info=>get_user_technical_name( ).
-      LOOP AT update-assetretire ASSIGNING FIELD-SYMBOL(<up>).
-        <up>-LastChangedBy    = lv_user_upd.
-        <up>-LastChangedAt    = lv_ts.
-        <up>-LocalLastChanged = lv_ts.
-      ENDLOOP.
-    ENDIF.
+    " Os campos administrativos (CreatedBy, CreatedAt, LastChangedBy, LastChangedAt,
+    " LocalLastChanged) são anotados com @Semantics na CDS view e por isso são
+    " gerenciados AUTOMATICAMENTE pelo framework RAP managed.
+    " Tentar escrevê-los manualmente aqui causa MOVE_TO_LIT_NOTALLOWED_NODATA
+    " porque o framework os protege contra escrita externa.
   ENDMETHOD.
 
   METHOD cleanup_finalize.
