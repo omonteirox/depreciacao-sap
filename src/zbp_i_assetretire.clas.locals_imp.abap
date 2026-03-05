@@ -240,11 +240,15 @@ CLASS lhc_assetretire IMPLEMENTATION.
           DATA(lv_post_date) = |{ ls_asset-PostingDate+0(4) }-{ ls_asset-PostingDate+4(2) }-{ ls_asset-PostingDate+6(2) }|.
           DATA(lv_val_date) = |{ ls_asset-AssetValueDate+0(4) }-{ ls_asset-AssetValueDate+4(2) }-{ ls_asset-AssetValueDate+6(2) }|.
 
+          " MasterFixedAsset: ANLN1 = CHAR(12), FixedAsset: ANLN2 = CHAR(4) — zero-padding obrigatório
+          DATA(lv_master) = |{ ls_asset-MasterFixedAsset ALPHA = OUT }|.
+          DATA(lv_subnr)  = |{ ls_asset-FixedAsset ALPHA = OUT }|.
+
           DATA(lv_json) =
             |\{| &&
             |"CompanyCode":"{ ls_asset-CompanyCode }",| &&
-            |"MasterFixedAsset":"{ ls_asset-MasterFixedAsset }",| &&
-            |"FixedAsset":"{ ls_asset-FixedAsset }",| &&
+            |"MasterFixedAsset":"{ lv_master }",| &&
+            |"FixedAsset":"{ lv_subnr }",| &&
             |"DocumentDate":"{ lv_doc_date }",| &&
             |"PostingDate":"{ lv_post_date }",| &&
             |"AssetValueDate":"{ lv_val_date }",| &&
@@ -276,10 +280,18 @@ CLASS lhc_assetretire IMPLEMENTATION.
             ENDTRY.
           ELSE.
             lv_proc_status = 'E'.
-            lv_proc_msg = lv_body.
-            IF strlen( lv_proc_msg ) > 255.
-              lv_proc_msg = lv_proc_msg+0(255).
+            " Extrair só o campo message do JSON de erro (evitar dump do JSON bruto)
+            DATA lv_msg_extracted TYPE c LENGTH 255.
+            FIND REGEX '"message"\s*:\s*"([^"]{1,200})"' IN lv_body SUBMATCHES lv_msg_extracted.
+            IF lv_msg_extracted IS NOT INITIAL.
+              lv_proc_msg = lv_msg_extracted.
+            ELSE.
+              lv_proc_msg = lv_body.
+              IF strlen( lv_proc_msg ) > 255.
+                lv_proc_msg = lv_proc_msg+0(255).
+              ENDIF.
             ENDIF.
+            CLEAR lv_msg_extracted.
           ENDIF.
 
         CATCH cx_http_dest_provider_error INTO DATA(lx_dest).
@@ -322,9 +334,13 @@ CLASS lhc_assetretire IMPLEMENTATION.
       FAILED DATA(lt_upd_failed)
       REPORTED DATA(lt_upd_reported).
 
+    " Ler apenas os campos que foram atualizados para evitar NODATA de campos admin no draft
     READ ENTITIES OF zi_assetretire IN LOCAL MODE
       ENTITY AssetRetire
-      ALL FIELDS WITH CORRESPONDING #( keys )
+      FIELDS ( CompanyCode MasterFixedAsset FixedAsset AssetDescription AssetClass
+               DocumentDate PostingDate AssetValueDate RetirementType RetirementRatio
+               HeaderText ItemText ProcessStatus ProcessMsg RefDocNumber StatusCriticality )
+      WITH CORRESPONDING #( keys )
       RESULT DATA(lt_result).
 
     result = VALUE #( FOR ls IN lt_result
