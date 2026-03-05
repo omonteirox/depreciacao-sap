@@ -226,6 +226,8 @@ CLASS lhc_assetretire IMPLEMENTATION.
       DATA lv_proc_status TYPE c LENGTH 1.
       DATA lv_proc_msg    TYPE c LENGTH 255.
       DATA lv_ref_doc     TYPE c LENGTH 10.
+      DATA lv_sys_date    TYPE d.
+      DATA lv_year_code   TYPE c LENGTH 1.
 
       lv_proc_status = 'P'.
 
@@ -246,11 +248,15 @@ CLASS lhc_assetretire IMPLEMENTATION.
           DATA(lv_master) = |{ ls_asset-MasterFixedAsset ALPHA = OUT }|.
           DATA(lv_subnr)  = |{ ls_asset-FixedAsset ALPHA = OUT }|.
 
-          " FixedAssetYearOfAcqnCode: 'P'=Prior Year (ativos de anos anteriores ao atual)
-          " 'C'=Current Year. Para 2024/2025 usar sempre 'P'.
-          DATA(lv_year_code) = COND #(
-            WHEN ls_asset-AcquisitionDate(4) < cl_abap_context_info=>get_system_date( )(0(4))
-            THEN 'P' ELSE 'C' ).
+          " FixedAssetYearOfAcqnCode: 'P'=Prior Year, 'C'=Current Year
+          " Para ativos 2024/2025 (anos anteriores) será sempre 'P'
+          lv_sys_date  = cl_abap_context_info=>get_system_date( ).
+          IF ls_asset-AcquisitionDate(4) < lv_sys_date(4).
+            lv_year_code = 'P'.
+          ELSE.
+            lv_year_code = 'C'.
+          ENDIF.
+
 
           DATA(lv_json) =
             |\{| &&
