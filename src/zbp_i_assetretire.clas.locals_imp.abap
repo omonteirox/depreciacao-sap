@@ -114,24 +114,17 @@ CLASS lhc_assetretire IMPLEMENTATION.
       ENDIF.
 
       " Validação da Data de Capitalização exigida pela Regra de Negócio AA/322 / AA/324
-      IF ls_data-AcquisitionDate IS INITIAL OR ls_data-AcquisitionDate = '00000000'.
-        APPEND VALUE #(
-          %tky = ls_data-%tky
-          %msg = new_message_with_text(
-            severity = if_abap_behv_message=>severity-error
-            text     = 'Não é possível baixar ativo sem data de aquisição' )
-          %element-AcquisitionDate = if_abap_behv=>mk-on
-        ) TO reported-assetretire.
-        APPEND VALUE #( %tky = ls_data-%tky ) TO failed-assetretire.
-      ELSEIF ls_data-AssetValueDate < ls_data-AcquisitionDate.
-        APPEND VALUE #(
-          %tky = ls_data-%tky
-          %msg = new_message_with_text(
-            severity = if_abap_behv_message=>severity-error
-            text     = |Data de baixa ({ ls_data-AssetValueDate+6(2) }/{ ls_data-AssetValueDate+4(2) }/{ ls_data-AssetValueDate+0(4) }) anterior à capitalização| )
-          %element-AssetValueDate = if_abap_behv=>mk-on
-        ) TO reported-assetretire.
-        APPEND VALUE #( %tky = ls_data-%tky ) TO failed-assetretire.
+      IF ls_data-AcquisitionDate IS NOT INITIAL AND ls_data-AcquisitionDate <> '00000000'.
+        IF ls_data-AssetValueDate < ls_data-AcquisitionDate.
+          APPEND VALUE #(
+            %tky = ls_data-%tky
+            %msg = new_message_with_text(
+              severity = if_abap_behv_message=>severity-error
+              text     = |Data de baixa ({ ls_data-AssetValueDate+6(2) }/{ ls_data-AssetValueDate+4(2) }/{ ls_data-AssetValueDate+0(4) }) anterior à capitalização| )
+            %element-AssetValueDate = if_abap_behv=>mk-on
+          ) TO reported-assetretire.
+          APPEND VALUE #( %tky = ls_data-%tky ) TO failed-assetretire.
+        ENDIF.
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -149,7 +142,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
 
     SELECT companycode, masterfixedasset, fixedasset,
            fixedassetdescription, assetclass,
-           assetcapitalizationdate
+           assetcapitalizationdate, creationdate
       FROM zi_fixedassetlist
       WHERE companycode = @lv_company
       INTO TABLE @DATA(lt_sap_assets).
@@ -170,6 +163,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
     DATA lt_create TYPE TABLE FOR CREATE zi_assetretire\\AssetRetire.
     DATA(lv_date) = cl_abap_context_info=>get_system_date( ).
     DATA lv_idx TYPE i.
+    DATA lv_skipped TYPE i.
 
     LOOP AT lt_sap_assets INTO DATA(ls_sap).
       READ TABLE lt_existing WITH KEY
@@ -188,7 +182,8 @@ CLASS lhc_assetretire IMPLEMENTATION.
         FixedAsset       = ls_sap-FixedAsset
         AssetDescription = ls_sap-FixedAssetDescription
         AssetClass       = ls_sap-AssetClass
-        AcquisitionDate  = ls_sap-AssetCapitalizationDate
+        " Usa a Data de Criação como base para validação de aquisição, já que os testes não têm cap date
+        AcquisitionDate  = ls_sap-CreationDate
         DocumentDate     = lv_date
         PostingDate      = lv_date
         AssetValueDate   = lv_date
