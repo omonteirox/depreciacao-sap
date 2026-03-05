@@ -16,3 +16,4 @@ define view entity ZI_FixedAssetList
 where
       AssetLifecycleStatus <> '5'
   and AssetLifecycleStatus <> '2'
+  and AssetCapitalizationDate > '00000000'

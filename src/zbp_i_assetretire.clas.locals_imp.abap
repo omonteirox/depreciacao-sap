@@ -84,7 +84,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
   METHOD validateasset.
     READ ENTITIES OF zi_assetretire IN LOCAL MODE
       ENTITY AssetRetire
-      FIELDS ( CompanyCode MasterFixedAsset FixedAsset )
+      FIELDS ( CompanyCode MasterFixedAsset FixedAsset AssetValueDate AcquisitionDate )
       WITH CORRESPONDING #( keys )
       RESULT DATA(lt_data).
 
@@ -108,6 +108,28 @@ CLASS lhc_assetretire IMPLEMENTATION.
             severity = if_abap_behv_message=>severity-error
             text     = 'Imobilizado é obrigatório' )
           %element-MasterFixedAsset = if_abap_behv=>mk-on
+        ) TO reported-assetretire.
+        APPEND VALUE #( %tky = ls_data-%tky ) TO failed-assetretire.
+        CONTINUE.
+      ENDIF.
+
+      " Validação da Data de Capitalização exigida pela Regra de Negócio AA/322 / AA/324
+      IF ls_data-AcquisitionDate IS INITIAL OR ls_data-AcquisitionDate = '00000000'.
+        APPEND VALUE #(
+          %tky = ls_data-%tky
+          %msg = new_message_with_text(
+            severity = if_abap_behv_message=>severity-error
+            text     = 'Não é possível baixar ativo sem data de aquisição' )
+          %element-AcquisitionDate = if_abap_behv=>mk-on
+        ) TO reported-assetretire.
+        APPEND VALUE #( %tky = ls_data-%tky ) TO failed-assetretire.
+      ELSEIF ls_data-AssetValueDate < ls_data-AcquisitionDate.
+        APPEND VALUE #(
+          %tky = ls_data-%tky
+          %msg = new_message_with_text(
+            severity = if_abap_behv_message=>severity-error
+            text     = |Data de baixa ({ ls_data-AssetValueDate+6(2) }/{ ls_data-AssetValueDate+4(2) }/{ ls_data-AssetValueDate+0(4) }) anterior à capitalização| )
+          %element-AssetValueDate = if_abap_behv=>mk-on
         ) TO reported-assetretire.
         APPEND VALUE #( %tky = ls_data-%tky ) TO failed-assetretire.
       ENDIF.
@@ -258,6 +280,16 @@ CLASS lhc_assetretire IMPLEMENTATION.
           " ── STEP 2: Montar payload e enviar POST ──────────────────────────────
           DATA(lo_request) = lo_client->get_http_request( ).
 
+          IF ls_asset-DocumentDate IS INITIAL OR ls_asset-DocumentDate = '00000000'.
+            ls_asset-DocumentDate = cl_abap_context_info=>get_system_date( ).
+          ENDIF.
+          IF ls_asset-PostingDate IS INITIAL OR ls_asset-PostingDate = '00000000'.
+            ls_asset-PostingDate = cl_abap_context_info=>get_system_date( ).
+          ENDIF.
+          IF ls_asset-AssetValueDate IS INITIAL OR ls_asset-AssetValueDate = '00000000'.
+            ls_asset-AssetValueDate = cl_abap_context_info=>get_system_date( ).
+          ENDIF.
+
           DATA(lv_doc_date)  = |{ ls_asset-DocumentDate+0(4) }-{ ls_asset-DocumentDate+4(2) }-{ ls_asset-DocumentDate+6(2) }|.
           DATA(lv_post_date) = |{ ls_asset-PostingDate+0(4) }-{ ls_asset-PostingDate+4(2) }-{ ls_asset-PostingDate+6(2) }|.
           DATA(lv_val_date)  = |{ ls_asset-AssetValueDate+0(4) }-{ ls_asset-AssetValueDate+4(2) }-{ ls_asset-AssetValueDate+6(2) }|.
@@ -276,39 +308,90 @@ CLASS lhc_assetretire IMPLEMENTATION.
             lv_year_code = 'C'.
           ENDIF.
 
-          " ReferenceDocumentItem: IsDigitSequence MaxLength=6 — zero-pad obrigatório
-          DATA(lv_ref_item) = |{ '1' ALPHA = IN }|.  " '000001'
-
-          " Decimal: DECIMALS=2 gera espaços à esquerda — CONDENSE remove
-          DATA(lv_ratio) = |{ ls_asset-RetirementRatio DECIMALS = 2 }|.
-          CONDENSE lv_ratio.
-          REPLACE ALL OCCURRENCES OF ',' IN lv_ratio WITH '.'.
-
-          " — Trim campos string para evitar espaços que corrompem o JSON ——
+          " — Trim campos string ——
           DATA(lv_ccode)      = CONV string( ls_asset-CompanyCode ).
           DATA(lv_ret_type)   = CONV string( ls_asset-RetirementType ).
           DATA(lv_hdr_text)   = CONV string( ls_asset-HeaderText ).
           DATA(lv_item_text)  = CONV string( ls_asset-ItemText ).
           CONDENSE: lv_ccode, lv_ret_type, lv_hdr_text, lv_item_text.
 
+          TYPES:
+            BEGIN OF ty_post_req_full,
+              reference_document_item             TYPE string,
+              business_transaction_type           TYPE string,
+              company_code                        TYPE string,
+              master_fixed_asset                  TYPE string,
+              fixed_asset                         TYPE string,
+              document_date                       TYPE string,
+              posting_date                        TYPE string,
+              asset_value_date                    TYPE string,
+              fixed_asset_retirement_type         TYPE string,
+              document_header_text                TYPE string,
+              document_item_text                  TYPE string,
+            END OF ty_post_req_full.
 
-          DATA(lv_json) =
-            |\{| &&
-            |"ReferenceDocumentItem":"000001",| &&
-            |"BusinessTransactionType":"ABGANG",| &&
-            |"CompanyCode":"{ lv_ccode }",| &&
-            |"MasterFixedAsset":"{ lv_master }",| &&
-            |"FixedAsset":"{ lv_subnr }",| &&
-            |"DocumentDate":"{ lv_doc_date }",| &&
-            |"PostingDate":"{ lv_post_date }",| &&
-            |"AssetValueDate":"{ lv_val_date }",| &&
-            |"FixedAssetRetirementType":"{ lv_ret_type }",| &&
-            |"FxdAstRetirementRatioInPercent":{ lv_ratio },| &&
-            |"FixedAssetYearOfAcqnCode":"{ lv_year_code }",| &&
-            |"AccountingDocumentHeaderText":"{ lv_hdr_text }",| &&
-            |"DocumentItemText":"{ lv_item_text }",| &&
-            |"_Ledger":[]| &&
-            |\}|.
+          TYPES:
+            BEGIN OF ty_post_req,
+              reference_document_item             TYPE string,
+              business_transaction_type           TYPE string,
+              company_code                        TYPE string,
+              master_fixed_asset                  TYPE string,
+              fixed_asset                         TYPE string,
+              document_date                       TYPE string,
+              posting_date                        TYPE string,
+              asset_value_date                    TYPE string,
+              fixed_asset_retirement_type         TYPE string,
+              ratio_in_percent                    TYPE p LENGTH 5 DECIMALS 2,
+              fixed_asset_year_of_acqn_code       TYPE string,
+              document_header_text                TYPE string,
+              document_item_text                  TYPE string,
+            END OF ty_post_req.
+
+          DATA ls_post_req_full TYPE ty_post_req_full.
+          DATA ls_post_req TYPE ty_post_req.
+          DATA lv_json TYPE string.
+
+          IF lv_ret_type = '1'.
+            ls_post_req_full-reference_document_item = '000001'.
+            ls_post_req_full-business_transaction_type = 'RA21'. " RA21 = Retirement without revenue
+            ls_post_req_full-company_code            = lv_ccode.
+            ls_post_req_full-master_fixed_asset      = lv_master.
+            ls_post_req_full-fixed_asset             = lv_subnr.
+            ls_post_req_full-document_date           = lv_doc_date.
+            ls_post_req_full-posting_date            = lv_post_date.
+            ls_post_req_full-asset_value_date        = lv_val_date.
+            ls_post_req_full-fixed_asset_retirement_type = lv_ret_type.
+            ls_post_req_full-document_header_text    = lv_hdr_text.
+            ls_post_req_full-document_item_text      = lv_item_text.
+
+            lv_json = xco_cp_json=>data->from_abap( ls_post_req_full )->apply( VALUE #(
+              ( xco_cp_json=>transformation->underscore_to_pascal_case )
+            ) )->to_string( ).
+
+          ELSE.
+            ls_post_req-reference_document_item = '000001'.
+            ls_post_req-business_transaction_type = 'RA21'. " RA21 = Retirement without revenue
+            ls_post_req-company_code            = lv_ccode.
+            ls_post_req-master_fixed_asset      = lv_master.
+            ls_post_req-fixed_asset             = lv_subnr.
+            ls_post_req-document_date           = lv_doc_date.
+            ls_post_req-posting_date            = lv_post_date.
+            ls_post_req-asset_value_date        = lv_val_date.
+            ls_post_req-fixed_asset_retirement_type = lv_ret_type.
+            ls_post_req-ratio_in_percent        = ls_asset-RetirementRatio.
+            ls_post_req-fixed_asset_year_of_acqn_code = lv_year_code.
+            ls_post_req-document_header_text    = lv_hdr_text.
+            ls_post_req-document_item_text      = lv_item_text.
+
+            lv_json = xco_cp_json=>data->from_abap( ls_post_req )->apply( VALUE #(
+              ( xco_cp_json=>transformation->underscore_to_pascal_case )
+            ) )->to_string( ).
+
+            " Converter nomes curtos mapeados para o nome real da API devido ao limite de 30 chars do ABAP
+            REPLACE ALL OCCURRENCES OF '"RatioInPercent"' IN lv_json WITH '"FxdAstRetirementRatioInPercent"'.
+          ENDIF.
+
+          REPLACE ALL OCCURRENCES OF '"DocumentHeaderText"' IN lv_json WITH '"AccountingDocumentHeaderText"'.
 
           lo_request->set_uri_path(
             '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/FixedAssetRetirement/SAP__self.Post'
