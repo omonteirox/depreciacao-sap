@@ -12,6 +12,7 @@ define root view entity ZC_AssetRetire
       FixedAsset,
       AssetDescription,
       AssetClass,
+      AcquisitionDate,
       DocumentDate,
       PostingDate,
       AssetValueDate,

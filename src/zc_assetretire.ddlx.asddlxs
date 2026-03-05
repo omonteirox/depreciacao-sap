@@ -43,6 +43,11 @@ annotate entity ZC_AssetRetire with
          identification: [{ position: 50 }] }
   AssetClass;
 
+  @UI: { lineItem: [{ position: 55, importance: #MEDIUM }],
+         identification: [{ position: 55 }],
+         selectionField: [{ position: 30 }] }
+  AcquisitionDate;
+
   @UI: { fieldGroup: [{ qualifier: 'Retirement', position: 10 }] }
   DocumentDate;
 

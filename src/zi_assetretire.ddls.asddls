@@ -9,6 +9,7 @@ define root view entity ZI_AssetRetire
       fixed_asset            as FixedAsset,
       asset_description      as AssetDescription,
       asset_class            as AssetClass,
+      acquisition_date       as AcquisitionDate,
       document_date          as DocumentDate,
       posting_date           as PostingDate,
       asset_value_date       as AssetValueDate,

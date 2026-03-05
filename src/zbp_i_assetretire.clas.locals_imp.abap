@@ -126,7 +126,8 @@ CLASS lhc_assetretire IMPLEMENTATION.
     ENDIF.
 
     SELECT companycode, masterfixedasset, fixedasset,
-           fixedassetdescription, assetclass
+           fixedassetdescription, assetclass,
+           assetcapitalizationdate
       FROM zi_fixedassetlist
       WHERE companycode = @lv_company
       INTO TABLE @DATA(lt_sap_assets).
@@ -165,6 +166,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
         FixedAsset       = ls_sap-FixedAsset
         AssetDescription = ls_sap-FixedAssetDescription
         AssetClass       = ls_sap-AssetClass
+        AcquisitionDate  = ls_sap-AssetCapitalizationDate
         DocumentDate     = lv_date
         PostingDate      = lv_date
         AssetValueDate   = lv_date
@@ -244,8 +246,16 @@ CLASS lhc_assetretire IMPLEMENTATION.
           DATA(lv_master) = |{ ls_asset-MasterFixedAsset ALPHA = OUT }|.
           DATA(lv_subnr)  = |{ ls_asset-FixedAsset ALPHA = OUT }|.
 
+          " FixedAssetYearOfAcqnCode: 'P'=Prior Year (ativos de anos anteriores ao atual)
+          " 'C'=Current Year. Para 2024/2025 usar sempre 'P'.
+          DATA(lv_year_code) = COND #(
+            WHEN ls_asset-AcquisitionDate(4) < cl_abap_context_info=>get_system_date( )(0(4))
+            THEN 'P' ELSE 'C' ).
+
           DATA(lv_json) =
             |\{| &&
+            |"ReferenceDocumentItem":"1",| &&
+            |"BusinessTransactionType":"ABGANG",| &&
             |"CompanyCode":"{ ls_asset-CompanyCode }",| &&
             |"MasterFixedAsset":"{ lv_master }",| &&
             |"FixedAsset":"{ lv_subnr }",| &&
@@ -254,6 +264,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
             |"AssetValueDate":"{ lv_val_date }",| &&
             |"FixedAssetRetirementType":"{ ls_asset-RetirementType }",| &&
             |"FxdAstRetirementRatioInPercent":{ ls_asset-RetirementRatio },| &&
+            |"FixedAssetYearOfAcqnCode":"{ lv_year_code }",| &&
             |"AccountingDocumentHeaderText":"{ ls_asset-HeaderText }",| &&
             |"DocumentItemText":"{ ls_asset-ItemText }"| &&
             |\}|.
@@ -280,13 +291,18 @@ CLASS lhc_assetretire IMPLEMENTATION.
             ENDTRY.
           ELSE.
             lv_proc_status = 'E'.
-            " Extrair só o campo message do JSON de erro (evitar dump do JSON bruto)
+            " Tenta extrair SAP error.message (formato OData v4 error.message)
             DATA lv_msg_extracted TYPE c LENGTH 255.
-            FIND REGEX '"message"\s*:\s*"([^"]{1,200})"' IN lv_body SUBMATCHES lv_msg_extracted.
+            " Formato tipo 1: {"error":{"message":"..."}}
+            FIND REGEX '"error"\s*:\s*\{[^}]*"message"\s*:\s*"([^"]{1,200})"' IN lv_body SUBMATCHES lv_msg_extracted.
+            IF lv_msg_extracted IS INITIAL.
+              " Formato tipo 2: {"message":"..."} direto ou dentro de SAP__Messages
+              FIND REGEX '"message"\s*:\s*"([^"]{1,200})"' IN lv_body SUBMATCHES lv_msg_extracted.
+            ENDIF.
             IF lv_msg_extracted IS NOT INITIAL.
-              lv_proc_msg = lv_msg_extracted.
+              lv_proc_msg = |HTTP { lv_status_code }: { lv_msg_extracted }|.
             ELSE.
-              lv_proc_msg = lv_body.
+              lv_proc_msg = |HTTP { lv_status_code }: { lv_body }|.
               IF strlen( lv_proc_msg ) > 255.
                 lv_proc_msg = lv_proc_msg+0(255).
               ENDIF.

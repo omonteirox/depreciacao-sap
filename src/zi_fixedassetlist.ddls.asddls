@@ -10,7 +10,8 @@ define view entity ZI_FixedAssetList
   key FixedAsset,
       AssetClass,
       FixedAssetDescription,
-      AssetLifecycleStatus
+      AssetLifecycleStatus,
+      AssetCapitalizationDate
 }
 where
       AssetLifecycleStatus <> '5'
