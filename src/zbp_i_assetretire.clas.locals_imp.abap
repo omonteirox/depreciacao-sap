@@ -243,6 +243,19 @@ CLASS lhc_assetretire IMPLEMENTATION.
           ).
 
           DATA(lo_client)  = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
+
+          " ── STEP 1: Fetch CSRF Token (obrigatório para POST no SAP OData v4) ──
+          DATA(lo_req_csrf) = lo_client->get_http_request( ).
+          lo_req_csrf->set_uri_path(
+            '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/'
+          ).
+          lo_req_csrf->set_header_field( i_name = 'x-csrf-token' i_value = 'fetch' ).
+          lo_req_csrf->set_header_field( i_name = 'Accept'       i_value = 'application/json' ).
+
+          DATA(lo_resp_csrf)  = lo_client->execute( if_web_http_client=>head ).
+          DATA(lv_csrf_token) = lo_resp_csrf->get_header_field( 'x-csrf-token' ).
+
+          " ── STEP 2: Montar payload e enviar POST ──────────────────────────────
           DATA(lo_request) = lo_client->get_http_request( ).
 
           DATA(lv_doc_date)  = |{ ls_asset-DocumentDate+0(4) }-{ ls_asset-DocumentDate+4(2) }-{ ls_asset-DocumentDate+6(2) }|.
@@ -254,7 +267,6 @@ CLASS lhc_assetretire IMPLEMENTATION.
           DATA(lv_subnr)  = |{ ls_asset-FixedAsset ALPHA = OUT }|.
 
           " FixedAssetYearOfAcqnCode: 'P'=Prior Year / 'C'=Current Year
-          " Para ativos 2024/2025 (ano < ano atual) = 'P'
           lv_sys_date = cl_abap_context_info=>get_system_date( ).
           IF ls_asset-AcquisitionDate IS INITIAL OR
              ls_asset-AcquisitionDate(4) < lv_sys_date(4).
@@ -281,10 +293,11 @@ CLASS lhc_assetretire IMPLEMENTATION.
             |\}|.
 
           lo_request->set_uri_path(
-            '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/FixedAssetRetirement/SAP__self.Post'
+            '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/FixedAssetRetirement/com.sap.gateway.srvd_a2x.api_fixedassetretirement.v0001.Post'
           ).
-          lo_request->set_header_field( i_name = 'Content-Type' i_value = 'application/json' ).
-          lo_request->set_header_field( i_name = 'Accept'       i_value = 'application/json' ).
+          lo_request->set_header_field( i_name = 'Content-Type'  i_value = 'application/json' ).
+          lo_request->set_header_field( i_name = 'Accept'        i_value = 'application/json' ).
+          lo_request->set_header_field( i_name = 'x-csrf-token'  i_value = lv_csrf_token ).
           lo_request->set_text( lv_json ).
 
           DATA(lo_response)    = lo_client->execute( if_web_http_client=>post ).
