@@ -183,24 +183,27 @@ CLASS lhc_assetretire IMPLEMENTATION.
       RETURN.
     ENDIF.
 
+    " Usar variáveis locais para MAPPED/FAILED/REPORTED
+    " Evita misturar com os acumuladores do behavior handler
     MODIFY ENTITIES OF zi_assetretire IN LOCAL MODE
       ENTITY AssetRetire
       CREATE SET FIELDS WITH lt_create
-      MAPPED mapped
-      FAILED failed
-      REPORTED reported.
+      MAPPED DATA(lm_mapped)
+      FAILED DATA(lf_failed)
+      REPORTED DATA(lr_reported).
 
+    " Acumular failed/reported de volta nos retornos do handler
+    INSERT LINES OF lf_failed-assetretire   INTO TABLE failed-assetretire.
+    INSERT LINES OF lr_reported-assetretire INTO TABLE reported-assetretire.
+
+    " Ler as entidades recém-criadas a partir do mapeamento local
     READ ENTITIES OF zi_assetretire IN LOCAL MODE
       ENTITY AssetRetire
-      ALL FIELDS WITH CORRESPONDING #( mapped-assetretire )
+      ALL FIELDS WITH CORRESPONDING #( lm_mapped-assetretire )
       RESULT DATA(lt_read_created).
 
-    LOOP AT lt_read_created INTO DATA(ls_created).
-      READ TABLE mapped-assetretire INTO DATA(ls_map)
-        WITH KEY %tky = ls_created-%tky.
-      APPEND VALUE #( %cid   = ls_map-%cid
-                      %param = ls_created ) TO result.
-    ENDLOOP.
+    " Result de static action: apenas %param, sem %cid (não há correlação por content-ID)
+    result = VALUE #( FOR ls IN lt_read_created ( %param = ls ) ).
 
     APPEND VALUE #( %msg = new_message_with_text(
       severity = if_abap_behv_message=>severity-success

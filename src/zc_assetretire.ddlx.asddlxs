@@ -18,8 +18,11 @@ annotate entity ZC_AssetRetire with
   ]
 
   @UI: { lineItem: [{ position: 10, importance: #HIGH },
-                    { type: #FOR_ACTION, dataAction: 'importAssets', label: 'Importar Ativos' }],
-         identification: [{ position: 10 }],
+                    { type: #FOR_ACTION, dataAction: 'importAssets',     label: 'Importar Ativos' },
+                    { type: #FOR_ACTION, dataAction: 'executeRetirement', label: 'Executar Baixa',
+                      invocationGrouping: #CHANGE_SET }],
+         identification: [{ position: 10 },
+                          { type: #FOR_ACTION, dataAction: 'executeRetirement', label: 'Executar Baixa' }],
          selectionField: [{ position: 10 }] }
   CompanyCode;
 
