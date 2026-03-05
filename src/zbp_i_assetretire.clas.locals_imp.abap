@@ -275,21 +275,36 @@ CLASS lhc_assetretire IMPLEMENTATION.
             lv_year_code = 'C'.
           ENDIF.
 
+          " ReferenceDocumentItem: IsDigitSequence MaxLength=6 — zero-pad obrigatório
+          DATA(lv_ref_item) = |{ '1' ALPHA = IN }|.  " '000001'
+
+          " Decimal: usar ponto como separador (JSON padrão)
+          DATA(lv_ratio) = |{ ls_asset-RetirementRatio DECIMALS = 2 }|.
+          REPLACE ALL OCCURRENCES OF ',' IN lv_ratio WITH '.'.
+
+          " — Trim campos string para evitar espaços que corrompem o JSON ——
+          DATA(lv_ccode)      = CONV string( ls_asset-CompanyCode ).
+          DATA(lv_ret_type)   = CONV string( ls_asset-RetirementType ).
+          DATA(lv_hdr_text)   = CONV string( ls_asset-HeaderText ).
+          DATA(lv_item_text)  = CONV string( ls_asset-ItemText ).
+          CONDENSE: lv_ccode, lv_ret_type, lv_hdr_text, lv_item_text.
+
           DATA(lv_json) =
             |\{| &&
-            |"ReferenceDocumentItem":"1",| &&
+            |"ReferenceDocumentItem":"000001",| &&
             |"BusinessTransactionType":"ABGANG",| &&
-            |"CompanyCode":"{ ls_asset-CompanyCode }",| &&
+            |"CompanyCode":"{ lv_ccode }",| &&
             |"MasterFixedAsset":"{ lv_master }",| &&
             |"FixedAsset":"{ lv_subnr }",| &&
             |"DocumentDate":"{ lv_doc_date }",| &&
             |"PostingDate":"{ lv_post_date }",| &&
             |"AssetValueDate":"{ lv_val_date }",| &&
-            |"FixedAssetRetirementType":"{ ls_asset-RetirementType }",| &&
-            |"FxdAstRetirementRatioInPercent":{ ls_asset-RetirementRatio },| &&
+            |"FixedAssetRetirementType":"{ lv_ret_type }",| &&
+            |"FxdAstRetirementRatioInPercent":{ lv_ratio },| &&
             |"FixedAssetYearOfAcqnCode":"{ lv_year_code }",| &&
-            |"AccountingDocumentHeaderText":"{ ls_asset-HeaderText }",| &&
-            |"DocumentItemText":"{ ls_asset-ItemText }"| &&
+            |"AccountingDocumentHeaderText":"{ lv_hdr_text }",| &&
+            |"DocumentItemText":"{ lv_item_text }",| &&
+            |"_Ledger":[]| &&
             |\}|.
 
           lo_request->set_uri_path(
@@ -299,6 +314,9 @@ CLASS lhc_assetretire IMPLEMENTATION.
           lo_request->set_header_field( i_name = 'Accept'        i_value = 'application/json' ).
           lo_request->set_header_field( i_name = 'x-csrf-token'  i_value = lv_csrf_token ).
           lo_request->set_text( lv_json ).
+
+          \" ── DEBUG TEMPORÁRIO: mostrar JSON enviado ──────────────────
+          lv_proc_msg = lv_json(255).
 
           DATA(lo_response)    = lo_client->execute( if_web_http_client=>post ).
           DATA(lv_status_code) = lo_response->get_status( )-code.
