@@ -184,7 +184,6 @@ CLASS lhc_assetretire IMPLEMENTATION.
     ENDIF.
 
     " Usar variáveis locais para MAPPED/FAILED/REPORTED
-    " Evita misturar com os acumuladores do behavior handler
     MODIFY ENTITIES OF zi_assetretire IN LOCAL MODE
       ENTITY AssetRetire
       CREATE SET FIELDS WITH lt_create
@@ -192,18 +191,15 @@ CLASS lhc_assetretire IMPLEMENTATION.
       FAILED DATA(lf_failed)
       REPORTED DATA(lr_reported).
 
-    " Acumular failed/reported de volta nos retornos do handler
     INSERT LINES OF lf_failed-assetretire   INTO TABLE failed-assetretire.
     INSERT LINES OF lr_reported-assetretire INTO TABLE reported-assetretire.
 
-    " Ler as entidades recém-criadas a partir do mapeamento local
-    READ ENTITIES OF zi_assetretire IN LOCAL MODE
-      ENTITY AssetRetire
-      ALL FIELDS WITH CORRESPONDING #( lm_mapped-assetretire )
-      RESULT DATA(lt_read_created).
-
-    " Result de static action: apenas %param, sem %cid (não há correlação por content-ID)
-    result = VALUE #( FOR ls IN lt_read_created ( %param = ls ) ).
+    " NÃO fazemos READ ENTITIES + result aqui.
+    " READ ENTITIES ALL FIELDS dentro da action retorna campos administrativos
+    " (CreatedAt, LastChangedAt, LocalLastChanged) com flag NODATA no buffer de draft,
+    " pois save_modified ainda não executou. Isso causa MOVE_TO_LIT_NOTALLOWED_NODATA
+    " quando o framework tenta serializar NODATA para JSON.
+    " Para result [0..*] $self, retornar vazio é válido — Fiori refresca a lista.
 
     APPEND VALUE #( %msg = new_message_with_text(
       severity = if_abap_behv_message=>severity-success
