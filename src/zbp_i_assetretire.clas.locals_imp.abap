@@ -262,9 +262,10 @@ CLASS lhc_assetretire IMPLEMENTATION.
           DATA(lv_post_date) = |{ ls_asset-PostingDate+0(4) }-{ ls_asset-PostingDate+4(2) }-{ ls_asset-PostingDate+6(2) }|.
           DATA(lv_val_date)  = |{ ls_asset-AssetValueDate+0(4) }-{ ls_asset-AssetValueDate+4(2) }-{ ls_asset-AssetValueDate+6(2) }|.
 
-          " ANLN1=CHAR(12), ANLN2=CHAR(4) — zero-padding para a API
-          DATA(lv_master) = |{ ls_asset-MasterFixedAsset ALPHA = OUT }|.
-          DATA(lv_subnr)  = |{ ls_asset-FixedAsset ALPHA = OUT }|.
+          " MasterFixedAsset MaxLength=12, FixedAsset MaxLength=4 — formato interno (com zeros)
+          DATA(lv_master) = |{ ls_asset-MasterFixedAsset ALPHA = IN }|.
+          DATA(lv_subnr)  = |{ ls_asset-FixedAsset ALPHA = IN }|.
+          CONDENSE: lv_master, lv_subnr.  " remove espaços residuais de TYPE C
 
           " FixedAssetYearOfAcqnCode: 'P'=Prior Year / 'C'=Current Year
           lv_sys_date = cl_abap_context_info=>get_system_date( ).
@@ -278,8 +279,9 @@ CLASS lhc_assetretire IMPLEMENTATION.
           " ReferenceDocumentItem: IsDigitSequence MaxLength=6 — zero-pad obrigatório
           DATA(lv_ref_item) = |{ '1' ALPHA = IN }|.  " '000001'
 
-          " Decimal: usar ponto como separador (JSON padrão)
+          " Decimal: DECIMALS=2 gera espaços à esquerda — CONDENSE remove
           DATA(lv_ratio) = |{ ls_asset-RetirementRatio DECIMALS = 2 }|.
+          CONDENSE lv_ratio.
           REPLACE ALL OCCURRENCES OF ',' IN lv_ratio WITH '.'.
 
           " — Trim campos string para evitar espaços que corrompem o JSON ——
@@ -288,6 +290,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
           DATA(lv_hdr_text)   = CONV string( ls_asset-HeaderText ).
           DATA(lv_item_text)  = CONV string( ls_asset-ItemText ).
           CONDENSE: lv_ccode, lv_ret_type, lv_hdr_text, lv_item_text.
+
 
           DATA(lv_json) =
             |\{| &&
@@ -308,7 +311,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
             |\}|.
 
           lo_request->set_uri_path(
-            '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/FixedAssetRetirement/com.sap.gateway.srvd_a2x.api_fixedassetretirement.v0001.Post'
+            '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/FixedAssetRetirement/SAP__self.Post'
           ).
           lo_request->set_header_field( i_name = 'Content-Type'  i_value = 'application/json' ).
           lo_request->set_header_field( i_name = 'Accept'        i_value = 'application/json' ).
