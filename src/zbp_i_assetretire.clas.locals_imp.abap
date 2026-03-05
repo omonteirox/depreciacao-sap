@@ -218,45 +218,50 @@ CLASS lhc_assetretire IMPLEMENTATION.
 
     DATA lt_update TYPE TABLE FOR UPDATE zi_assetretire\\AssetRetire.
 
+    " Variáveis fora do LOOP para evitar redeclaração problemática
+    DATA lv_proc_status TYPE c LENGTH 1.
+    DATA lv_proc_msg    TYPE c LENGTH 255.
+    DATA lv_ref_doc     TYPE c LENGTH 10.
+    DATA lv_sys_date    TYPE d.
+    DATA lv_year_code   TYPE c LENGTH 1.
+    DATA lv_msg_ext     TYPE c LENGTH 255.
+
     LOOP AT lt_assets INTO DATA(ls_asset).
       IF ls_asset-ProcessStatus = 'S' OR ls_asset-ProcessStatus = 'P'.
         CONTINUE.
       ENDIF.
 
-      DATA lv_proc_status TYPE c LENGTH 1.
-      DATA lv_proc_msg    TYPE c LENGTH 255.
-      DATA lv_ref_doc     TYPE c LENGTH 10.
-      DATA lv_sys_date    TYPE d.
-      DATA lv_year_code   TYPE c LENGTH 1.
-
-      lv_proc_status = 'P'.
+      " ── Reset obrigatório a cada iteração ──────────────────────────────
+      CLEAR: lv_proc_status, lv_proc_msg, lv_ref_doc,
+             lv_year_code, lv_msg_ext.
+      lv_proc_status = 'P'. " provisório — indica em processamento
 
       TRY.
           DATA(lo_dest) = cl_http_destination_provider=>create_by_comm_arrangement(
-            comm_scenario  = 'ZASSET_RETIRE_CS'
-            service_id     = 'ZASSET_RETIRE_REST'
+            comm_scenario  = 'ZCS_BAIXAIMOBILIZADO'
+            service_id     = 'ZBAIXAR_IMOBILIZADO_REST'
           ).
 
-          DATA(lo_client) = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
+          DATA(lo_client)  = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
           DATA(lo_request) = lo_client->get_http_request( ).
 
-          DATA(lv_doc_date) = |{ ls_asset-DocumentDate+0(4) }-{ ls_asset-DocumentDate+4(2) }-{ ls_asset-DocumentDate+6(2) }|.
+          DATA(lv_doc_date)  = |{ ls_asset-DocumentDate+0(4) }-{ ls_asset-DocumentDate+4(2) }-{ ls_asset-DocumentDate+6(2) }|.
           DATA(lv_post_date) = |{ ls_asset-PostingDate+0(4) }-{ ls_asset-PostingDate+4(2) }-{ ls_asset-PostingDate+6(2) }|.
-          DATA(lv_val_date) = |{ ls_asset-AssetValueDate+0(4) }-{ ls_asset-AssetValueDate+4(2) }-{ ls_asset-AssetValueDate+6(2) }|.
+          DATA(lv_val_date)  = |{ ls_asset-AssetValueDate+0(4) }-{ ls_asset-AssetValueDate+4(2) }-{ ls_asset-AssetValueDate+6(2) }|.
 
-          " MasterFixedAsset: ANLN1 = CHAR(12), FixedAsset: ANLN2 = CHAR(4) — zero-padding obrigatório
+          " ANLN1=CHAR(12), ANLN2=CHAR(4) — zero-padding para a API
           DATA(lv_master) = |{ ls_asset-MasterFixedAsset ALPHA = OUT }|.
           DATA(lv_subnr)  = |{ ls_asset-FixedAsset ALPHA = OUT }|.
 
-          " FixedAssetYearOfAcqnCode: 'P'=Prior Year, 'C'=Current Year
-          " Para ativos 2024/2025 (anos anteriores) será sempre 'P'
-          lv_sys_date  = cl_abap_context_info=>get_system_date( ).
-          IF ls_asset-AcquisitionDate(4) < lv_sys_date(4).
+          " FixedAssetYearOfAcqnCode: 'P'=Prior Year / 'C'=Current Year
+          " Para ativos 2024/2025 (ano < ano atual) = 'P'
+          lv_sys_date = cl_abap_context_info=>get_system_date( ).
+          IF ls_asset-AcquisitionDate IS INITIAL OR
+             ls_asset-AcquisitionDate(4) < lv_sys_date(4).
             lv_year_code = 'P'.
           ELSE.
             lv_year_code = 'C'.
           ENDIF.
-
 
           DATA(lv_json) =
             |\{| &&
@@ -282,86 +287,119 @@ CLASS lhc_assetretire IMPLEMENTATION.
           lo_request->set_header_field( i_name = 'Accept'       i_value = 'application/json' ).
           lo_request->set_text( lv_json ).
 
-          DATA(lo_response) = lo_client->execute( if_web_http_client=>post ).
+          DATA(lo_response)    = lo_client->execute( if_web_http_client=>post ).
           DATA(lv_status_code) = lo_response->get_status( )-code.
-          DATA(lv_body) = lo_response->get_text( ).
+          DATA(lv_body)        = lo_response->get_text( ).
 
           lo_client->close( ).
 
           IF lv_status_code >= 200 AND lv_status_code < 300.
+            " ── SUCESSO ────────────────────────────────────────────────
             lv_proc_status = 'S'.
-            lv_proc_msg = 'Baixa realizada com sucesso'.
+            lv_proc_msg    = 'Baixa realizada com sucesso'.
             TRY.
                 FIND REGEX '"ReferenceDocument"\s*:\s*"([^"]*)"' IN lv_body SUBMATCHES lv_ref_doc.
               CATCH cx_root ##NO_HANDLER.
             ENDTRY.
-          ELSE.
+          ELSEIF lv_status_code = 401.
             lv_proc_status = 'E'.
-            " Tenta extrair SAP error.message (formato OData v4 error.message)
-            DATA lv_msg_extracted TYPE c LENGTH 255.
-            " Formato tipo 1: {"error":{"message":"..."}}
-            FIND REGEX '"error"\s*:\s*\{[^}]*"message"\s*:\s*"([^"]{1,200})"' IN lv_body SUBMATCHES lv_msg_extracted.
-            IF lv_msg_extracted IS INITIAL.
-              " Formato tipo 2: {"message":"..."} direto ou dentro de SAP__Messages
-              FIND REGEX '"message"\s*:\s*"([^"]{1,200})"' IN lv_body SUBMATCHES lv_msg_extracted.
+            lv_proc_msg = '[401] Autenticacao falhou - verifique usuario/senha no acordo ZCS_BAIXAIMOBILIZADO'.
+          ELSEIF lv_status_code = 403.
+            lv_proc_status = 'E'.
+            lv_proc_msg = '[403] Sem autorizacao - atribua role de imobilizado ao usuario de comunicacao'.
+          ELSE.
+            " ── OUTROS ERROS HTTP ───────────────────────────────────────
+            lv_proc_status = 'E'.
+
+            " Detecta resposta HTML (pagina de login SAP) — nao exibir HTML bruto
+            DATA lv_is_html TYPE abap_bool.
+            IF lv_body CP '*<html*' OR lv_body CP '*<!DOCTYPE*'.
+              lv_is_html = abap_true.
             ENDIF.
-            IF lv_msg_extracted IS NOT INITIAL.
-              lv_proc_msg = |HTTP { lv_status_code }: { lv_msg_extracted }|.
-            ELSE.
-              lv_proc_msg = |HTTP { lv_status_code }: { lv_body }|.
-              IF strlen( lv_proc_msg ) > 255.
-                lv_proc_msg = lv_proc_msg+0(255).
+
+            IF lv_is_html = abap_false.
+              FIND REGEX '"error"\s*:\s*\{[^}]*"message"\s*:\s*"([^"]{1,180})"'
+                IN lv_body SUBMATCHES lv_msg_ext.
+              IF lv_msg_ext IS INITIAL.
+                FIND REGEX '"message"\s*:\s*"([^"]{1,180})"'
+                  IN lv_body SUBMATCHES lv_msg_ext.
               ENDIF.
             ENDIF.
-            CLEAR lv_msg_extracted.
+
+            IF lv_msg_ext IS NOT INITIAL.
+              lv_proc_msg = |[{ lv_status_code }] { lv_msg_ext }|.
+            ELSEIF lv_is_html = abap_true.
+              lv_proc_msg = |[{ lv_status_code }] Resposta HTML - verifique configuracao do acordo de comunicacao|.
+            ELSE.
+              DATA(lv_raw) = |[{ lv_status_code }] { lv_body }|.
+              IF strlen( lv_raw ) > 255.
+                lv_proc_msg = lv_raw+0(255).
+              ELSE.
+                lv_proc_msg = lv_raw.
+              ENDIF.
+            ENDIF.
           ENDIF.
+
 
         CATCH cx_http_dest_provider_error INTO DATA(lx_dest).
           lv_proc_status = 'E'.
-          lv_proc_msg = lx_dest->get_text( ).
+          lv_proc_msg    = |[DEST] { lx_dest->get_text( ) }|.
+          IF strlen( lv_proc_msg ) > 255. lv_proc_msg = lv_proc_msg+0(255). ENDIF.
         CATCH cx_web_http_client_error INTO DATA(lx_http).
           lv_proc_status = 'E'.
-          lv_proc_msg = lx_http->get_text( ).
+          lv_proc_msg    = |[HTTP] { lx_http->get_text( ) }|.
+          IF strlen( lv_proc_msg ) > 255. lv_proc_msg = lv_proc_msg+0(255). ENDIF.
         CATCH cx_root INTO DATA(lx_root).
           lv_proc_status = 'E'.
-          lv_proc_msg = lx_root->get_text( ).
+          lv_proc_msg    = |[EXC] { lx_root->get_text( ) }|.
+          IF strlen( lv_proc_msg ) > 255. lv_proc_msg = lv_proc_msg+0(255). ENDIF.
       ENDTRY.
 
+      " ── Sempre persiste status + mensagem via UPDATE ──────────────────
+      " NÃO emitir reported com severity-error aqui:
+      " O framework RAP interpreta error em reported como falha de validação
+      " e pode fazer rollback silencioso do MODIFY ENTITIES abaixo.
       APPEND VALUE #(
-        %tky           = ls_asset-%tky
-        ProcessStatus  = lv_proc_status
-        ProcessMsg     = lv_proc_msg
-        RefDocNumber   = lv_ref_doc
+        %tky          = ls_asset-%tky
+        ProcessStatus = lv_proc_status
+        ProcessMsg    = lv_proc_msg
+        RefDocNumber  = lv_ref_doc
         %control = VALUE #(
           ProcessStatus = if_abap_behv=>mk-on
           ProcessMsg    = if_abap_behv=>mk-on
           RefDocNumber  = if_abap_behv=>mk-on )
       ) TO lt_update.
 
+      " Mensagem informativa para o toast do Fiori (severity-warning não bloqueia)
       APPEND VALUE #(
         %tky = ls_asset-%tky
         %msg = new_message_with_text(
-          severity = COND #( WHEN lv_proc_status = 'S'
-                             THEN if_abap_behv_message=>severity-success
-                             ELSE if_abap_behv_message=>severity-error )
-          text = |{ ls_asset-MasterFixedAsset }-{ ls_asset-FixedAsset }: { lv_proc_msg }| )
+          severity = COND #(
+            WHEN lv_proc_status = 'S'
+            THEN if_abap_behv_message=>severity-success
+            ELSE if_abap_behv_message=>severity-warning )   "<< warning, não error
+          text = |{ lv_master }-{ lv_subnr }: { lv_proc_msg }| )
       ) TO reported-assetretire.
 
-      CLEAR: lv_ref_doc, lv_proc_msg.
     ENDLOOP.
 
+    " ── Persiste todas as atualizações de status ──────────────────────
     MODIFY ENTITIES OF zi_assetretire IN LOCAL MODE
       ENTITY AssetRetire
       UPDATE FROM lt_update
       FAILED DATA(lt_upd_failed)
       REPORTED DATA(lt_upd_reported).
 
-    " Ler apenas os campos que foram atualizados para evitar NODATA de campos admin no draft
+    " Propaga eventuais falhas do UPDATE
+    INSERT LINES OF lt_upd_reported-assetretire INTO TABLE reported-assetretire.
+
+    " Retorna os registros atualizados com ProcessMsg visível na tela
     READ ENTITIES OF zi_assetretire IN LOCAL MODE
       ENTITY AssetRetire
       FIELDS ( CompanyCode MasterFixedAsset FixedAsset AssetDescription AssetClass
-               DocumentDate PostingDate AssetValueDate RetirementType RetirementRatio
-               HeaderText ItemText ProcessStatus ProcessMsg RefDocNumber StatusCriticality )
+               AcquisitionDate DocumentDate PostingDate AssetValueDate
+               RetirementType RetirementRatio HeaderText ItemText
+               ProcessStatus ProcessMsg RefDocNumber StatusCriticality )
       WITH CORRESPONDING #( keys )
       RESULT DATA(lt_result).
 
