@@ -291,8 +291,8 @@ CLASS lhc_assetretire IMPLEMENTATION.
 
           " MasterFixedAsset MaxLength=12, FixedAsset MaxLength=4 — formato interno (com zeros)
           DATA(lv_master) = |{ ls_asset-MasterFixedAsset ALPHA = IN }|.
-          DATA(lv_subnr)  = |{ ls_asset-FixedAsset ALPHA = IN }|.
-          CONDENSE: lv_master, lv_subnr.  " remove espaços residuais de TYPE C
+          DATA(lv_subnr)  = |{ ls_asset-FixedAsset ALPHA = OUT }|.  " sem zeros → "0000" vira "0"
+          CONDENSE: lv_master, lv_subnr.
 
           " FixedAssetYearOfAcqnCode: 'P'=Prior Year / 'C'=Current Year
           lv_sys_date = cl_abap_context_info=>get_system_date( ).
@@ -320,9 +320,12 @@ CLASS lhc_assetretire IMPLEMENTATION.
               document_date                       TYPE string,
               posting_date                        TYPE string,
               asset_value_date                    TYPE string,
-              revenue_type                        TYPE string, " → FxdAstRetirementRevenueType via REPLACE
+              fixed_asset_retirement_type         TYPE string,
+              revenue_type                        TYPE string,           " → FxdAstRetirementRevenueType
+              revenue_amount                      TYPE p LENGTH 10 DECIMALS 2, " → AstRevenueAmountInTransCrcy
+              fxd_ast_rtrmt_revn_trans_crcy       TYPE string,           " nome exato da API
+              currency_role                       TYPE string,           " → FxdAstRtrmtRevnCurrencyRole
               document_header_text                TYPE string,
-              document_item_text                  TYPE string,
             END OF ty_post_req_full.
 
           TYPES:
@@ -335,12 +338,14 @@ CLASS lhc_assetretire IMPLEMENTATION.
               document_date                       TYPE string,
               posting_date                        TYPE string,
               asset_value_date                    TYPE string,
-              revenue_type                        TYPE string, " → FxdAstRetirementRevenueType via REPLACE
               fixed_asset_retirement_type         TYPE string,
+              revenue_type                        TYPE string,           " → FxdAstRetirementRevenueType
+              revenue_amount                      TYPE p LENGTH 10 DECIMALS 2, " → AstRevenueAmountInTransCrcy
+              fxd_ast_rtrmt_revn_trans_crcy       TYPE string,           " nome exato da API
+              currency_role                       TYPE string,           " → FxdAstRtrmtRevnCurrencyRole
               ratio_in_percent                    TYPE p LENGTH 5 DECIMALS 2,
               fixed_asset_year_of_acqn_code       TYPE string,
               document_header_text                TYPE string,
-              document_item_text                  TYPE string,
             END OF ty_post_req.
 
           DATA ls_post_req_full TYPE ty_post_req_full.
@@ -348,16 +353,20 @@ CLASS lhc_assetretire IMPLEMENTATION.
           DATA lv_json TYPE string.
 
           IF lv_ret_type = '1'.
-            ls_post_req_full-reference_document_item = '000001'.
-            ls_post_req_full-business_transaction_type = 'RA20'. " RA20 = Retirement without revenue
-            ls_post_req_full-company_code            = lv_ccode.
-            ls_post_req_full-master_fixed_asset      = lv_master.
-            ls_post_req_full-fixed_asset             = lv_subnr.
-            ls_post_req_full-document_date           = lv_doc_date.
-            ls_post_req_full-posting_date            = lv_post_date.
-            ls_post_req_full-asset_value_date        = lv_val_date.
-            ls_post_req_full-revenue_type            = '2'. " 2 = sem receita (FxdAstRetirementRevenueType)
-            ls_post_req_full-document_header_text    = lv_hdr_text.
+            ls_post_req_full-reference_document_item    = '1'.
+            ls_post_req_full-business_transaction_type  = 'RA20'.
+            ls_post_req_full-company_code               = lv_ccode.
+            ls_post_req_full-master_fixed_asset         = lv_master.
+            ls_post_req_full-fixed_asset                = lv_subnr.
+            ls_post_req_full-document_date              = lv_doc_date.
+            ls_post_req_full-posting_date               = lv_post_date.
+            ls_post_req_full-asset_value_date           = lv_val_date.
+            ls_post_req_full-fixed_asset_retirement_type = '1'.
+            ls_post_req_full-revenue_type               = '1'.
+            ls_post_req_full-revenue_amount             = '0.01'.
+            ls_post_req_full-fxd_ast_rtrmt_revn_trans_crcy = 'BRL'.
+            ls_post_req_full-currency_role              = '10'.
+            ls_post_req_full-document_header_text       = lv_hdr_text.
             ls_post_req_full-document_item_text      = lv_item_text.
 
             lv_json = xco_cp_json=>data->from_abap( ls_post_req_full )->apply( VALUE #(
@@ -365,20 +374,22 @@ CLASS lhc_assetretire IMPLEMENTATION.
             ) )->to_string( ).
 
           ELSE.
-            ls_post_req-reference_document_item = '000001'.
-            ls_post_req-business_transaction_type = 'RA20'. " RA20 = Retirement without revenue
-            ls_post_req-company_code            = lv_ccode.
-            ls_post_req-master_fixed_asset      = lv_master.
-            ls_post_req-fixed_asset             = lv_subnr.
-            ls_post_req-document_date           = lv_doc_date.
-            ls_post_req-posting_date            = lv_post_date.
-            ls_post_req-asset_value_date        = lv_val_date.
-            ls_post_req-revenue_type            = '2'. " 2 = sem receita (FxdAstRetirementRevenueType)
-            ls_post_req-fixed_asset_retirement_type = '2'. " 2 = baixa parcial por percentual (domínio FAA_TR_RETIREMENT_TYPE)
-            ls_post_req-ratio_in_percent        = ls_asset-RetirementRatio.
+            ls_post_req-reference_document_item    = '1'.
+            ls_post_req-business_transaction_type  = 'RA20'.
+            ls_post_req-company_code               = lv_ccode.
+            ls_post_req-master_fixed_asset         = lv_master.
+            ls_post_req-fixed_asset                = lv_subnr.
+            ls_post_req-document_date              = lv_doc_date.
+            ls_post_req-posting_date               = lv_post_date.
+            ls_post_req-asset_value_date           = lv_val_date.
+            ls_post_req-fixed_asset_retirement_type = '1'.
+            ls_post_req-revenue_type               = '1'.
+            ls_post_req-revenue_amount             = '0.01'.
+            ls_post_req-fxd_ast_rtrmt_revn_trans_crcy = 'BRL'.
+            ls_post_req-currency_role              = '10'.
+            ls_post_req-ratio_in_percent           = ls_asset-RetirementRatio.
             ls_post_req-fixed_asset_year_of_acqn_code = lv_year_code.
-            ls_post_req-document_header_text    = lv_hdr_text.
-            ls_post_req-document_item_text      = lv_item_text.
+            ls_post_req-document_header_text       = lv_hdr_text.
 
             lv_json = xco_cp_json=>data->from_abap( ls_post_req )->apply( VALUE #(
               ( xco_cp_json=>transformation->underscore_to_pascal_case )
@@ -388,7 +399,9 @@ CLASS lhc_assetretire IMPLEMENTATION.
             REPLACE ALL OCCURRENCES OF '"RatioInPercent"' IN lv_json WITH '"FxdAstRetirementRatioInPercent"'.
           ENDIF.
 
-          REPLACE ALL OCCURRENCES OF '"RevenueType"' IN lv_json WITH '"FxdAstRetirementRevenueType"'.
+          REPLACE ALL OCCURRENCES OF '"RevenueType"'   IN lv_json WITH '"FxdAstRetirementRevenueType"'.
+          REPLACE ALL OCCURRENCES OF '"RevenueAmount"' IN lv_json WITH '"AstRevenueAmountInTransCrcy"'.
+          REPLACE ALL OCCURRENCES OF '"CurrencyRole"'  IN lv_json WITH '"FxdAstRtrmtRevnCurrencyRole"'.
           REPLACE ALL OCCURRENCES OF '"DocumentHeaderText"' IN lv_json WITH '"AccountingDocumentHeaderText"'.
 
           lo_request->set_uri_path(
