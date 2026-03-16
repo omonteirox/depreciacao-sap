@@ -6,15 +6,20 @@ CLASS lhc_assetretire DEFINITION INHERITING FROM cl_abap_behavior_handler.
       BEGIN OF ty_error_pattern,
         pattern   TYPE string,   " padrão wildcard (para CP)
         extractor TYPE string,   " regex opcional para capturar tokens (vazio = sem extração)
-        template  TYPE string,   " mensagem PT-BR com placeholder {0}=token extraído
+        template  TYPE string,   " mensagem PT-BR completa → gravada em ProcessMsg (coluna da lista)
+        toast     TYPE string,   " mensagem curta (≤60 chars) → exibida no popup do Fiori
       END OF ty_error_pattern,
       tt_error_patterns TYPE STANDARD TABLE OF ty_error_pattern
-                             WITH EMPTY KEY.
+                             WITH EMPTY KEY,
+      BEGIN OF ty_error_translation,
+        full_msg TYPE string,    " mensagem completa para ProcessMsg
+        toast    TYPE string,    " mensagem curta para popup
+      END OF ty_error_translation.
 
     " ── Método de tradução de erros API → PT-BR ──────────────────────────
     CLASS-METHODS translate_api_error
-      IMPORTING iv_technical_msg TYPE string
-      RETURNING VALUE(rv_user_msg) TYPE string.
+      IMPORTING iv_technical_msg  TYPE string
+      RETURNING VALUE(rs_result)  TYPE ty_error_translation.
 
     METHODS get_instance_features FOR INSTANCE FEATURES
       IMPORTING keys REQUEST requested_features FOR assetretire RESULT result.
@@ -49,38 +54,47 @@ CLASS lhc_assetretire IMPLEMENTATION.
         extractor = 'Profit center\s+\w+/(\S+)\s+does not exist'
         template  = 'Centro de lucro {0} não está ativo para a data de baixa. '
                  && 'Verifique a validade do centro de lucro no cadastro do imobilizado '
-                 && 'ou contate o responsável contábil.' )
+                 && 'ou contate o responsável contábil.'
+        toast     = 'Centro de lucro {0} inativo. Verifique o cadastro do ativo.' )
       ( pattern   = '*ASSET*ALREADY RETIRED*'
         extractor = ''
         template  = 'Imobilizado já baixado anteriormente. '
-                 && 'Verifique se a baixa já foi processada.' )
+                 && 'Verifique se a baixa já foi processada.'
+        toast     = 'Imobilizado já baixado anteriormente.' )
       ( pattern   = '*ASSET*FULLY RETIRED*'
         extractor = ''
         template  = 'Imobilizado já integralmente baixado. '
-                 && 'Verifique se a baixa já foi processada.' )
+                 && 'Verifique se a baixa já foi processada.'
+        toast     = 'Imobilizado já integralmente baixado.' )
       ( pattern   = '*FISCAL YEAR*NOT OPEN*'
         extractor = ''
         template  = 'Período contábil fechado para lançamentos. '
-                 && 'Solicite a abertura do período ao responsável financeiro.' )
+                 && 'Solicite a abertura do período ao responsável financeiro.'
+        toast     = 'Período contábil fechado. Solicite abertura ao financeiro.' )
       ( pattern   = '*POSTING PERIOD*NOT OPEN*'
         extractor = ''
         template  = 'Período contábil fechado para lançamentos. '
-                 && 'Solicite a abertura do período ao responsável financeiro.' )
+                 && 'Solicite a abertura do período ao responsável financeiro.'
+        toast     = 'Período contábil fechado. Solicite abertura ao financeiro.' )
       ( pattern   = '*ASSET*DOES NOT EXIST*'
         extractor = ''
         template  = 'Imobilizado não encontrado no sistema. '
-                 && 'Verifique o número do ativo.' )
+                 && 'Verifique o número do ativo.'
+        toast     = 'Imobilizado não encontrado. Verifique o número.' )
       ( pattern   = '*COMPANY CODE*DOES NOT EXIST*'
         extractor = ''
-        template  = 'Empresa inválida ou não configurada para baixa de imobilizado.' )
+        template  = 'Empresa inválida ou não configurada para baixa de imobilizado.'
+        toast     = 'Empresa inválida ou não configurada.' )
       ( pattern   = '*DOCUMENT TYPE*NOT DEFINED*'
         extractor = ''
         template  = 'Tipo de documento contábil não configurado. '
-                 && 'Contate o administrador do sistema.' )
+                 && 'Contate o administrador do sistema.'
+        toast     = 'Tipo de documento não configurado. Contate o admin.' )
       ( pattern   = '*DEPRECIATION*NOT YET RUN*'
         extractor = ''
         template  = 'Depreciação do período ainda não executada. '
-                 && 'Execute o ciclo de depreciação antes de processar a baixa.' )
+                 && 'Execute o ciclo de depreciação antes de processar a baixa.'
+        toast     = 'Depreciação pendente. Execute antes de processar a baixa.' )
     ).
 
     DATA(lv_msg_upper) = to_upper( iv_technical_msg ).
@@ -98,21 +112,25 @@ CLASS lhc_assetretire IMPLEMENTATION.
           IGNORING CASE.
       ENDIF.
 
-      " Substituir placeholder {0} pelo token (ou omitir se vazio)
-      rv_user_msg = ls_pat-template.
+      " Preenche full_msg e toast substituindo {0} pelo token capturado
+      rs_result-full_msg = ls_pat-template.
+      rs_result-toast    = ls_pat-toast.
       IF lv_token IS NOT INITIAL.
-        REPLACE ALL OCCURRENCES OF '{0}' IN rv_user_msg WITH lv_token.
+        REPLACE ALL OCCURRENCES OF '{0}' IN rs_result-full_msg WITH lv_token.
+        REPLACE ALL OCCURRENCES OF '{0}' IN rs_result-toast    WITH lv_token.
       ELSE.
-        " Remove placeholder não resolvido para não expor sintaxe interna
-        REPLACE ALL OCCURRENCES OF ' {0}' IN rv_user_msg WITH ''.
-        REPLACE ALL OCCURRENCES OF '{0}' IN rv_user_msg WITH ''.
+        REPLACE ALL OCCURRENCES OF ' {0}' IN rs_result-full_msg WITH ''.
+        REPLACE ALL OCCURRENCES OF '{0}'  IN rs_result-full_msg WITH ''.
+        REPLACE ALL OCCURRENCES OF ' {0}' IN rs_result-toast    WITH ''.
+        REPLACE ALL OCCURRENCES OF '{0}'  IN rs_result-toast    WITH ''.
       ENDIF.
 
       RETURN.
     ENDLOOP.
 
-    " Nenhum padrão reconhecido — retorna a mensagem técnica original
-    rv_user_msg = iv_technical_msg.
+    " Nenhum padrão reconhecido — usa a mensagem técnica original em ambos
+    rs_result-full_msg = iv_technical_msg.
+    rs_result-toast    = iv_technical_msg.
   ENDMETHOD.
 
   METHOD get_global_authorizations.
@@ -557,11 +575,10 @@ CLASS lhc_assetretire IMPLEMENTATION.
             ENDIF.
 
             IF lv_msg_ext IS NOT INITIAL.
-              " ProcessMsg: mensagem técnica com código HTTP (para debug na tabela)
-              lv_proc_msg = |[{ lv_status_code }] { lv_msg_ext }|.
-
-              " Delega tradução ao método dedicado — isola negócio do protocolo
-              lv_user_msg = translate_api_error( lv_msg_ext ).
+              " Traduz: full_msg → ProcessMsg (coluna da lista), toast → popup curto
+              DATA(ls_tr) = translate_api_error( CONV string( lv_msg_ext ) ).
+              lv_proc_msg = |[{ lv_status_code }] { ls_tr-full_msg }|.
+              lv_user_msg = ls_tr-toast.
             ELSEIF lv_is_html = abap_true.
               lv_proc_msg = |[{ lv_status_code }] Resposta HTML - verifique acordo de comunicacao|.
               lv_user_msg = 'Não foi possível conectar ao sistema de imobilizado. '
@@ -624,7 +641,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
             WHEN lv_proc_status = 'S'
             THEN if_abap_behv_message=>severity-success
             ELSE if_abap_behv_message=>severity-information )
-          text = |{ lv_master }-{ lv_subnr }: { lv_user_msg }| )
+          text = |Ativo { lv_master }: { lv_user_msg }| )
       ) TO reported-assetretire.
 
     ENDLOOP.
