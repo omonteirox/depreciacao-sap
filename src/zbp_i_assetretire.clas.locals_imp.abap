@@ -348,7 +348,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
 
           IF lv_ret_type = '1'.
             ls_post_req_full-reference_document_item = '000001'.
-            ls_post_req_full-business_transaction_type = 'RA21'. " RA21 = Retirement without revenue
+            ls_post_req_full-business_transaction_type = 'RA20'. " RA21 = Retirement without revenue
             ls_post_req_full-company_code            = lv_ccode.
             ls_post_req_full-master_fixed_asset      = lv_master.
             ls_post_req_full-fixed_asset             = lv_subnr.
@@ -365,7 +365,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
 
           ELSE.
             ls_post_req-reference_document_item = '000001'.
-            ls_post_req-business_transaction_type = 'RA21'. " RA21 = Retirement without revenue
+            ls_post_req-business_transaction_type = 'RA20'. " RA21 = Retirement without revenue
             ls_post_req-company_code            = lv_ccode.
             ls_post_req-master_fixed_asset      = lv_master.
             ls_post_req-fixed_asset             = lv_subnr.
@@ -396,7 +396,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
           lo_request->set_header_field( i_name = 'x-csrf-token'  i_value = lv_csrf_token ).
           lo_request->set_text( lv_json ).
 
-          \" ── DEBUG TEMPORÁRIO: mostrar JSON enviado ──────────────────
+          " ── DEBUG TEMPORÁRIO: mostrar JSON enviado ──────────────────
           lv_proc_msg = lv_json(255).
 
           DATA(lo_response)    = lo_client->execute( if_web_http_client=>post ).
@@ -524,8 +524,7 @@ ENDCLASS.
 
 CLASS lsc_zi_assetretire DEFINITION INHERITING FROM cl_abap_behavior_saver.
   PROTECTED SECTION.
-
-    METHODS save_modified REDEFINITION.
+    METHODS save_modified    REDEFINITION.
 
     METHODS cleanup_finalize REDEFINITION.
 
