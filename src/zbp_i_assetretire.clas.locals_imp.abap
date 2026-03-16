@@ -1,6 +1,21 @@
 CLASS lhc_assetretire DEFINITION INHERITING FROM cl_abap_behavior_handler.
   PRIVATE SECTION.
 
+    " ── Tipos para tabela de tradução de erros ────────────────────────────
+    TYPES:
+      BEGIN OF ty_error_pattern,
+        pattern   TYPE string,   " padrão wildcard (para CP)
+        extractor TYPE string,   " regex opcional para capturar tokens (vazio = sem extração)
+        template  TYPE string,   " mensagem PT-BR com placeholder {0}=token extraído
+      END OF ty_error_pattern,
+      tt_error_patterns TYPE STANDARD TABLE OF ty_error_pattern
+                             WITH EMPTY KEY.
+
+    " ── Método de tradução de erros API → PT-BR ──────────────────────────
+    CLASS-METHODS translate_api_error
+      IMPORTING iv_technical_msg TYPE string
+      RETURNING VALUE(rv_user_msg) TYPE string.
+
     METHODS get_instance_features FOR INSTANCE FEATURES
       IMPORTING keys REQUEST requested_features FOR assetretire RESULT result.
 
@@ -22,6 +37,83 @@ CLASS lhc_assetretire DEFINITION INHERITING FROM cl_abap_behavior_handler.
 ENDCLASS.
 
 CLASS lhc_assetretire IMPLEMENTATION.
+
+  METHOD translate_api_error.
+    " ── Tabela de padrões: cada entrada é uma regra de tradução ───────────
+    " pattern  : wildcard CP (maiúsculo — comparado com to_upper da mensagem)
+    " extractor: regex para capturar um token relevante (vazio = sem captura)
+    " template : mensagem PT-BR; use {0} onde o token capturado deve aparecer
+    " ─────────────────────────────────────────────────────────────────────
+    DATA(lt_patterns) = VALUE tt_error_patterns(
+      ( pattern   = '*PROFIT CENTER*DOES NOT EXIST*'
+        extractor = 'Profit center\s+\w+/(\S+)\s+does not exist'
+        template  = 'Centro de lucro {0} não está ativo para a data de baixa. '
+                 && 'Verifique a validade do centro de lucro no cadastro do imobilizado '
+                 && 'ou contate o responsável contábil.' )
+      ( pattern   = '*ASSET*ALREADY RETIRED*'
+        extractor = ''
+        template  = 'Imobilizado já baixado anteriormente. '
+                 && 'Verifique se a baixa já foi processada.' )
+      ( pattern   = '*ASSET*FULLY RETIRED*'
+        extractor = ''
+        template  = 'Imobilizado já integralmente baixado. '
+                 && 'Verifique se a baixa já foi processada.' )
+      ( pattern   = '*FISCAL YEAR*NOT OPEN*'
+        extractor = ''
+        template  = 'Período contábil fechado para lançamentos. '
+                 && 'Solicite a abertura do período ao responsável financeiro.' )
+      ( pattern   = '*POSTING PERIOD*NOT OPEN*'
+        extractor = ''
+        template  = 'Período contábil fechado para lançamentos. '
+                 && 'Solicite a abertura do período ao responsável financeiro.' )
+      ( pattern   = '*ASSET*DOES NOT EXIST*'
+        extractor = ''
+        template  = 'Imobilizado não encontrado no sistema. '
+                 && 'Verifique o número do ativo.' )
+      ( pattern   = '*COMPANY CODE*DOES NOT EXIST*'
+        extractor = ''
+        template  = 'Empresa inválida ou não configurada para baixa de imobilizado.' )
+      ( pattern   = '*DOCUMENT TYPE*NOT DEFINED*'
+        extractor = ''
+        template  = 'Tipo de documento contábil não configurado. '
+                 && 'Contate o administrador do sistema.' )
+      ( pattern   = '*DEPRECIATION*NOT YET RUN*'
+        extractor = ''
+        template  = 'Depreciação do período ainda não executada. '
+                 && 'Execute o ciclo de depreciação antes de processar a baixa.' )
+    ).
+
+    DATA(lv_msg_upper) = to_upper( iv_technical_msg ).
+
+    " Percorre os padrões em ordem — primeiro match vence
+    LOOP AT lt_patterns INTO DATA(ls_pat).
+      CHECK lv_msg_upper CP ls_pat-pattern.
+
+      " Padrão encontrado — capturar token se extractor definido
+      DATA lv_token TYPE string.
+      IF ls_pat-extractor IS NOT INITIAL.
+        FIND REGEX ls_pat-extractor
+          IN iv_technical_msg
+          SUBMATCHES lv_token
+          IGNORING CASE.
+      ENDIF.
+
+      " Substituir placeholder {0} pelo token (ou omitir se vazio)
+      rv_user_msg = ls_pat-template.
+      IF lv_token IS NOT INITIAL.
+        REPLACE ALL OCCURRENCES OF '{0}' IN rv_user_msg WITH lv_token.
+      ELSE.
+        " Remove placeholder não resolvido para não expor sintaxe interna
+        REPLACE ALL OCCURRENCES OF ' {0}' IN rv_user_msg WITH ''.
+        REPLACE ALL OCCURRENCES OF '{0}' IN rv_user_msg WITH ''.
+      ENDIF.
+
+      RETURN.
+    ENDLOOP.
+
+    " Nenhum padrão reconhecido — retorna a mensagem técnica original
+    rv_user_msg = iv_technical_msg.
+  ENDMETHOD.
 
   METHOD get_global_authorizations.
     IF requested_authorizations-%create EQ if_abap_behv=>mk-on.
@@ -237,7 +329,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
 
     " Variáveis fora do LOOP para evitar redeclaração problemática
     DATA lv_proc_status TYPE c LENGTH 1.
-    DATA lv_proc_msg    TYPE c LENGTH 255.
+    DATA lv_proc_msg    TYPE c LENGTH 512.
     DATA lv_ref_doc     TYPE c LENGTH 10.
     DATA lv_sys_date    TYPE d.
     DATA lv_year_code   TYPE c LENGTH 1.
@@ -413,9 +505,6 @@ CLASS lhc_assetretire IMPLEMENTATION.
           lo_request->set_header_field( i_name = 'x-csrf-token'  i_value = lv_csrf_token ).
           lo_request->set_text( lv_json ).
 
-          " ── DEBUG TEMPORÁRIO: mostrar JSON enviado ──────────────────
-          lv_proc_msg = lv_json(255).
-
           DATA(lo_response)    = lo_client->execute( if_web_http_client=>post ).
           DATA(lv_status_code) = lo_response->get_status( )-code.
           DATA(lv_body)        = lo_response->get_text( ).
@@ -434,11 +523,13 @@ CLASS lhc_assetretire IMPLEMENTATION.
           ELSEIF lv_status_code = 401.
             lv_proc_status = 'E'.
             lv_proc_msg    = 'Autenticacao falhou (401) - atualize a senha no acordo ZCS_BAIXAIMOBILIZADO'.
-            lv_user_msg    = 'Falha de autenticacao: atualize a senha do usuario de comunicacao no acordo ZCS_BAIXAIMOBILIZADO'.
+            lv_user_msg    = 'Não foi possível processar a baixa: credenciais de integração inválidas. '
+                          && 'Contate o administrador do sistema para renovar a senha de comunicação.'.
           ELSEIF lv_status_code = 403.
             lv_proc_status = 'E'.
             lv_proc_msg    = 'Sem autorizacao (403) - atribua role de imobilizado ao usuario de comunicacao'.
-            lv_user_msg    = 'Sem autorizacao: atribua a role de imobilizado ao usuario de comunicacao'.
+            lv_user_msg    = 'Não foi possível processar a baixa: usuário de integração sem permissão. '
+                          && 'Contate o administrador do sistema para verificar as autorizações.'.
           ELSE.
             " ── OUTROS ERROS HTTP ───────────────────────────────────────
             lv_proc_status = 'E'.
@@ -468,19 +559,22 @@ CLASS lhc_assetretire IMPLEMENTATION.
             IF lv_msg_ext IS NOT INITIAL.
               " ProcessMsg: mensagem técnica com código HTTP (para debug na tabela)
               lv_proc_msg = |[{ lv_status_code }] { lv_msg_ext }|.
-              " lv_user_msg: mensagem limpa sem código HTTP (para o toast do key user)
-              lv_user_msg = CONV string( lv_msg_ext ).
+
+              " Delega tradução ao método dedicado — isola negócio do protocolo
+              lv_user_msg = translate_api_error( lv_msg_ext ).
             ELSEIF lv_is_html = abap_true.
               lv_proc_msg = |[{ lv_status_code }] Resposta HTML - verifique acordo de comunicacao|.
-              lv_user_msg = 'Erro de conexao: verifique a configuracao do acordo de comunicacao ZCS_BAIXAIMOBILIZADO'.
+              lv_user_msg = 'Não foi possível conectar ao sistema de imobilizado. '
+                          && 'Contate o administrador para verificar a configuração de comunicação.'.
             ELSE.
               DATA(lv_raw) = |[{ lv_status_code }] { lv_body }|.
-              IF strlen( lv_raw ) > 500.
-                lv_proc_msg = lv_raw+0(500).
+              IF strlen( lv_raw ) > 512.
+                lv_proc_msg = lv_raw+0(512).
               ELSE.
                 lv_proc_msg = lv_raw.
               ENDIF.
-              lv_user_msg = |Erro inesperado ({ lv_status_code }) - contate o suporte tecnico|.
+              lv_user_msg = 'Não foi possível processar a baixa devido a um erro inesperado. '
+                          && 'Contate o suporte técnico informando o número do ativo e a data da tentativa.'.
             ENDIF.
           ENDIF.
 
@@ -493,17 +587,17 @@ CLASS lhc_assetretire IMPLEMENTATION.
           lv_proc_status = 'E'.
           lv_proc_msg    = |[DEST] { lx_dest->get_text( ) }|.
           lv_user_msg    = |Erro de destino: { lx_dest->get_text( ) }|.
-          IF strlen( lv_proc_msg ) > 255. lv_proc_msg = lv_proc_msg+0(255). ENDIF.
+          IF strlen( lv_proc_msg ) > 512. lv_proc_msg = lv_proc_msg+0(512). ENDIF.
         CATCH cx_web_http_client_error INTO DATA(lx_http).
           lv_proc_status = 'E'.
           lv_proc_msg    = |[HTTP] { lx_http->get_text( ) }|.
           lv_user_msg    = |Erro de comunicacao HTTP: { lx_http->get_text( ) }|.
-          IF strlen( lv_proc_msg ) > 255. lv_proc_msg = lv_proc_msg+0(255). ENDIF.
+          IF strlen( lv_proc_msg ) > 512. lv_proc_msg = lv_proc_msg+0(512). ENDIF.
         CATCH cx_root INTO DATA(lx_root).
           lv_proc_status = 'E'.
           lv_proc_msg    = |[EXC] { lx_root->get_text( ) }|.
           lv_user_msg    = |Erro inesperado: { lx_root->get_text( ) }|.
-          IF strlen( lv_proc_msg ) > 255. lv_proc_msg = lv_proc_msg+0(255). ENDIF.
+          IF strlen( lv_proc_msg ) > 512. lv_proc_msg = lv_proc_msg+0(512). ENDIF.
       ENDTRY.
 
       " ── Sempre persiste status + mensagem via UPDATE ──────────────────
