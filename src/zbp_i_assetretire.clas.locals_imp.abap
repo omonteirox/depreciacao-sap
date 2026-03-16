@@ -241,7 +241,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
     DATA lv_ref_doc     TYPE c LENGTH 10.
     DATA lv_sys_date    TYPE d.
     DATA lv_year_code   TYPE c LENGTH 1.
-    DATA lv_msg_ext     TYPE c LENGTH 255.
+    DATA lv_msg_ext     TYPE c LENGTH 500.
 
     LOOP AT lt_assets INTO DATA(ls_asset).
       IF ls_asset-ProcessStatus = 'S' OR ls_asset-ProcessStatus = 'P'.
@@ -348,14 +348,14 @@ CLASS lhc_assetretire IMPLEMENTATION.
 
           IF lv_ret_type = '1'.
             ls_post_req_full-reference_document_item = '000001'.
-            ls_post_req_full-business_transaction_type = 'RA20'. " RA21 = Retirement without revenue
+            ls_post_req_full-business_transaction_type = 'RA20'. " RA20 = Retirement without revenue
             ls_post_req_full-company_code            = lv_ccode.
             ls_post_req_full-master_fixed_asset      = lv_master.
             ls_post_req_full-fixed_asset             = lv_subnr.
             ls_post_req_full-document_date           = lv_doc_date.
             ls_post_req_full-posting_date            = lv_post_date.
             ls_post_req_full-asset_value_date        = lv_val_date.
-            ls_post_req_full-fixed_asset_retirement_type = lv_ret_type.
+            ls_post_req_full-fixed_asset_retirement_type = ''. " Vazio = baixa total na API
             ls_post_req_full-document_header_text    = lv_hdr_text.
             ls_post_req_full-document_item_text      = lv_item_text.
 
@@ -365,14 +365,14 @@ CLASS lhc_assetretire IMPLEMENTATION.
 
           ELSE.
             ls_post_req-reference_document_item = '000001'.
-            ls_post_req-business_transaction_type = 'RA20'. " RA21 = Retirement without revenue
+            ls_post_req-business_transaction_type = 'RA20'. " RA20 = Retirement without revenue
             ls_post_req-company_code            = lv_ccode.
             ls_post_req-master_fixed_asset      = lv_master.
             ls_post_req-fixed_asset             = lv_subnr.
             ls_post_req-document_date           = lv_doc_date.
             ls_post_req-posting_date            = lv_post_date.
             ls_post_req-asset_value_date        = lv_val_date.
-            ls_post_req-fixed_asset_retirement_type = lv_ret_type.
+            ls_post_req-fixed_asset_retirement_type = '2'. " 2 = baixa parcial por percentual na API
             ls_post_req-ratio_in_percent        = ls_asset-RetirementRatio.
             ls_post_req-fixed_asset_year_of_acqn_code = lv_year_code.
             ls_post_req-document_header_text    = lv_hdr_text.
@@ -430,10 +430,10 @@ CLASS lhc_assetretire IMPLEMENTATION.
             ENDIF.
 
             IF lv_is_html = abap_false.
-              FIND REGEX '"error"\s*:\s*\{[^}]*"message"\s*:\s*"([^"]{1,180})"'
+              FIND REGEX '"error"\s*:\s*\{[^}]*"message"\s*:\s*"([^"]{1,400})"'
                 IN lv_body SUBMATCHES lv_msg_ext.
               IF lv_msg_ext IS INITIAL.
-                FIND REGEX '"message"\s*:\s*"([^"]{1,180})"'
+                FIND REGEX '"message"\s*:\s*"([^"]{1,400})"'
                   IN lv_body SUBMATCHES lv_msg_ext.
               ENDIF.
             ENDIF.
@@ -444,8 +444,8 @@ CLASS lhc_assetretire IMPLEMENTATION.
               lv_proc_msg = |[{ lv_status_code }] Resposta HTML - verifique configuracao do acordo de comunicacao|.
             ELSE.
               DATA(lv_raw) = |[{ lv_status_code }] { lv_body }|.
-              IF strlen( lv_raw ) > 255.
-                lv_proc_msg = lv_raw+0(255).
+              IF strlen( lv_raw ) > 500.
+                lv_proc_msg = lv_raw+0(500).
               ELSE.
                 lv_proc_msg = lv_raw.
               ENDIF.
