@@ -242,6 +242,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
     DATA lv_sys_date    TYPE d.
     DATA lv_year_code   TYPE c LENGTH 1.
     DATA lv_msg_ext     TYPE c LENGTH 500.
+    DATA lv_user_msg    TYPE string.   " mensagem amigável para o toast (sem código HTTP)
 
     LOOP AT lt_assets INTO DATA(ls_asset).
       IF ls_asset-ProcessStatus = 'S' OR ls_asset-ProcessStatus = 'P'.
@@ -250,7 +251,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
 
       " ── Reset obrigatório a cada iteração ──────────────────────────────
       CLEAR: lv_proc_status, lv_proc_msg, lv_ref_doc,
-             lv_year_code, lv_msg_ext.
+             lv_year_code, lv_msg_ext, lv_user_msg.
       lv_proc_status = 'P'. " provisório — indica em processamento
 
       TRY.
@@ -425,16 +426,19 @@ CLASS lhc_assetretire IMPLEMENTATION.
             " ── SUCESSO ────────────────────────────────────────────────
             lv_proc_status = 'S'.
             lv_proc_msg    = 'Baixa realizada com sucesso'.
+            lv_user_msg    = 'Baixa realizada com sucesso'.
             TRY.
                 FIND REGEX '"ReferenceDocument"\s*:\s*"([^"]*)"' IN lv_body SUBMATCHES lv_ref_doc.
               CATCH cx_root ##NO_HANDLER.
             ENDTRY.
           ELSEIF lv_status_code = 401.
             lv_proc_status = 'E'.
-            lv_proc_msg = '[401] Autenticacao falhou - verifique usuario/senha no acordo ZCS_BAIXAIMOBILIZADO'.
+            lv_proc_msg    = 'Autenticacao falhou (401) - atualize a senha no acordo ZCS_BAIXAIMOBILIZADO'.
+            lv_user_msg    = 'Falha de autenticacao: atualize a senha do usuario de comunicacao no acordo ZCS_BAIXAIMOBILIZADO'.
           ELSEIF lv_status_code = 403.
             lv_proc_status = 'E'.
-            lv_proc_msg = '[403] Sem autorizacao - atribua role de imobilizado ao usuario de comunicacao'.
+            lv_proc_msg    = 'Sem autorizacao (403) - atribua role de imobilizado ao usuario de comunicacao'.
+            lv_user_msg    = 'Sem autorizacao: atribua a role de imobilizado ao usuario de comunicacao'.
           ELSE.
             " ── OUTROS ERROS HTTP ───────────────────────────────────────
             lv_proc_status = 'E'.
@@ -446,8 +450,15 @@ CLASS lhc_assetretire IMPLEMENTATION.
             ENDIF.
 
             IF lv_is_html = abap_false.
-              FIND REGEX '"error"\s*:\s*\{[^}]*"message"\s*:\s*"([^"]{1,400})"'
+              " 1) Tenta pegar a mensagem mais específica do array details[]
+              FIND REGEX '"details"\s*:\s*\[\s*\{[^{]*"message"\s*:\s*"([^"]{1,400})"'
                 IN lv_body SUBMATCHES lv_msg_ext.
+              " 2) Fallback: mensagem principal do objeto error{}
+              IF lv_msg_ext IS INITIAL.
+                FIND REGEX '"error"\s*:\s*\{"[^"]*"\s*:\s*"[^"]*"\s*,\s*"message"\s*:\s*"([^"]{1,400})"'
+                  IN lv_body SUBMATCHES lv_msg_ext.
+              ENDIF.
+              " 3) Fallback genérico: qualquer campo message no JSON
               IF lv_msg_ext IS INITIAL.
                 FIND REGEX '"message"\s*:\s*"([^"]{1,400})"'
                   IN lv_body SUBMATCHES lv_msg_ext.
@@ -455,9 +466,13 @@ CLASS lhc_assetretire IMPLEMENTATION.
             ENDIF.
 
             IF lv_msg_ext IS NOT INITIAL.
+              " ProcessMsg: mensagem técnica com código HTTP (para debug na tabela)
               lv_proc_msg = |[{ lv_status_code }] { lv_msg_ext }|.
+              " lv_user_msg: mensagem limpa sem código HTTP (para o toast do key user)
+              lv_user_msg = CONV string( lv_msg_ext ).
             ELSEIF lv_is_html = abap_true.
-              lv_proc_msg = |[{ lv_status_code }] Resposta HTML - verifique configuracao do acordo de comunicacao|.
+              lv_proc_msg = |[{ lv_status_code }] Resposta HTML - verifique acordo de comunicacao|.
+              lv_user_msg = 'Erro de conexao: verifique a configuracao do acordo de comunicacao ZCS_BAIXAIMOBILIZADO'.
             ELSE.
               DATA(lv_raw) = |[{ lv_status_code }] { lv_body }|.
               IF strlen( lv_raw ) > 500.
@@ -465,21 +480,29 @@ CLASS lhc_assetretire IMPLEMENTATION.
               ELSE.
                 lv_proc_msg = lv_raw.
               ENDIF.
+              lv_user_msg = |Erro inesperado ({ lv_status_code }) - contate o suporte tecnico|.
             ENDIF.
           ENDIF.
 
+          " Garante lv_user_msg preenchido como fallback
+          IF lv_user_msg IS INITIAL.
+            lv_user_msg = CONV string( lv_proc_msg ).
+          ENDIF.
 
         CATCH cx_http_dest_provider_error INTO DATA(lx_dest).
           lv_proc_status = 'E'.
           lv_proc_msg    = |[DEST] { lx_dest->get_text( ) }|.
+          lv_user_msg    = |Erro de destino: { lx_dest->get_text( ) }|.
           IF strlen( lv_proc_msg ) > 255. lv_proc_msg = lv_proc_msg+0(255). ENDIF.
         CATCH cx_web_http_client_error INTO DATA(lx_http).
           lv_proc_status = 'E'.
           lv_proc_msg    = |[HTTP] { lx_http->get_text( ) }|.
+          lv_user_msg    = |Erro de comunicacao HTTP: { lx_http->get_text( ) }|.
           IF strlen( lv_proc_msg ) > 255. lv_proc_msg = lv_proc_msg+0(255). ENDIF.
         CATCH cx_root INTO DATA(lx_root).
           lv_proc_status = 'E'.
           lv_proc_msg    = |[EXC] { lx_root->get_text( ) }|.
+          lv_user_msg    = |Erro inesperado: { lx_root->get_text( ) }|.
           IF strlen( lv_proc_msg ) > 255. lv_proc_msg = lv_proc_msg+0(255). ENDIF.
       ENDTRY.
 
@@ -498,15 +521,16 @@ CLASS lhc_assetretire IMPLEMENTATION.
           RefDocNumber  = if_abap_behv=>mk-on )
       ) TO lt_update.
 
-      " Mensagem informativa para o toast do Fiori (severity-warning não bloqueia)
+      " Toast do Fiori: usa lv_user_msg (sem código HTTP, linguagem de negócio)
+      " lv_proc_msg fica gravado na tabela para debug técnico
       APPEND VALUE #(
         %tky = ls_asset-%tky
         %msg = new_message_with_text(
           severity = COND #(
             WHEN lv_proc_status = 'S'
             THEN if_abap_behv_message=>severity-success
-            ELSE if_abap_behv_message=>severity-information ) "<< info = toast, não abre dialog modal
-          text = |{ lv_master }-{ lv_subnr }: { lv_proc_msg }| )
+            ELSE if_abap_behv_message=>severity-information )
+          text = |{ lv_master }-{ lv_subnr }: { lv_user_msg }| )
       ) TO reported-assetretire.
 
     ENDLOOP.
