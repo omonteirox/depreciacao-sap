@@ -18,9 +18,8 @@ annotate entity ZC_AssetRetire with
   ]
 
   @UI: { lineItem: [{ position: 10, importance: #HIGH },
-                    { type: #FOR_ACTION, dataAction: 'importAssets',     label: 'Importar Ativos' },
-                    { type: #FOR_ACTION, dataAction: 'executeRetirement', label: 'Executar Baixa',
-                      invocationGrouping: #CHANGE_SET }],
+                    { type: #FOR_ACTION, dataAction: 'importAssets',      label: 'Importar Ativos' },
+                    { type: #FOR_ACTION, dataAction: 'executeRetirement',  label: 'Executar Baixa' }],
          identification: [{ position: 10 },
                           { type: #FOR_ACTION, dataAction: 'executeRetirement', label: 'Executar Baixa' }],
          selectionField: [{ position: 10 }] }

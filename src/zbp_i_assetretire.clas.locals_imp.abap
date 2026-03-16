@@ -505,7 +505,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
           severity = COND #(
             WHEN lv_proc_status = 'S'
             THEN if_abap_behv_message=>severity-success
-            ELSE if_abap_behv_message=>severity-warning )   "<< warning, não error
+            ELSE if_abap_behv_message=>severity-information ) "<< info = toast, não abre dialog modal
           text = |{ lv_master }-{ lv_subnr }: { lv_proc_msg }| )
       ) TO reported-assetretire.
 
