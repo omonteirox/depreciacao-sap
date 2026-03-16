@@ -320,7 +320,6 @@ CLASS lhc_assetretire IMPLEMENTATION.
               document_date                       TYPE string,
               posting_date                        TYPE string,
               asset_value_date                    TYPE string,
-              fixed_asset_retirement_type         TYPE string,
               document_header_text                TYPE string,
               document_item_text                  TYPE string,
             END OF ty_post_req_full.
@@ -355,7 +354,6 @@ CLASS lhc_assetretire IMPLEMENTATION.
             ls_post_req_full-document_date           = lv_doc_date.
             ls_post_req_full-posting_date            = lv_post_date.
             ls_post_req_full-asset_value_date        = lv_val_date.
-            ls_post_req_full-fixed_asset_retirement_type = ''. " Vazio = baixa total na API
             ls_post_req_full-document_header_text    = lv_hdr_text.
             ls_post_req_full-document_item_text      = lv_item_text.
 
