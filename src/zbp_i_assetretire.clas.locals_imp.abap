@@ -354,6 +354,12 @@ CLASS lhc_assetretire IMPLEMENTATION.
     DATA lv_msg_ext     TYPE c LENGTH 500.
     DATA lv_user_msg    TYPE string.   " mensagem amigável para o toast (sem código HTTP)
 
+    " ── Parâmetros do dialog (escolha do usuário) ─────────────────────
+    " Todos os registros da mesma invocação compartilham o mesmo %param
+    DATA(lv_param_doc_date)  = VALUE #( keys[ 1 ]-%param-DocumentDate  OPTIONAL ).
+    DATA(lv_param_post_date) = VALUE #( keys[ 1 ]-%param-PostingDate   OPTIONAL ).
+    DATA(lv_param_val_date)  = VALUE #( keys[ 1 ]-%param-AssetValueDate OPTIONAL ).
+
     LOOP AT lt_assets INTO DATA(ls_asset).
       IF ls_asset-ProcessStatus = 'S' OR ls_asset-ProcessStatus = 'P'.
         CONTINUE.
@@ -386,13 +392,25 @@ CLASS lhc_assetretire IMPLEMENTATION.
           " ── STEP 2: Montar payload e enviar POST ──────────────────────────────
           DATA(lo_request) = lo_client->get_http_request( ).
 
-          IF ls_asset-DocumentDate IS INITIAL OR ls_asset-DocumentDate = '00000000'.
+          " Prioridade de datas:
+          "   1) Parâmetro do dialog (escolha global do usuário ao acionar a action)
+          "   2) Valor já editado individualmente no registro do ativo
+          "   3) Data do sistema (fallback)
+          IF lv_param_doc_date IS NOT INITIAL AND lv_param_doc_date <> '00000000'.
+            ls_asset-DocumentDate = lv_param_doc_date.
+          ELSEIF ls_asset-DocumentDate IS INITIAL OR ls_asset-DocumentDate = '00000000'.
             ls_asset-DocumentDate = cl_abap_context_info=>get_system_date( ).
           ENDIF.
-          IF ls_asset-PostingDate IS INITIAL OR ls_asset-PostingDate = '00000000'.
+
+          IF lv_param_post_date IS NOT INITIAL AND lv_param_post_date <> '00000000'.
+            ls_asset-PostingDate = lv_param_post_date.
+          ELSEIF ls_asset-PostingDate IS INITIAL OR ls_asset-PostingDate = '00000000'.
             ls_asset-PostingDate = cl_abap_context_info=>get_system_date( ).
           ENDIF.
-          IF ls_asset-AssetValueDate IS INITIAL OR ls_asset-AssetValueDate = '00000000'.
+
+          IF lv_param_val_date IS NOT INITIAL AND lv_param_val_date <> '00000000'.
+            ls_asset-AssetValueDate = lv_param_val_date.
+          ELSEIF ls_asset-AssetValueDate IS INITIAL OR ls_asset-AssetValueDate = '00000000'.
             ls_asset-AssetValueDate = cl_abap_context_info=>get_system_date( ).
           ENDIF.
 

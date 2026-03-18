@@ -28,7 +28,7 @@ with additional save
   static action importAssets parameter ZA_ImportParam result [0..*] $self;
 
   // Executar baixa via API CE_FIXEDASSETRETIREMENT_0001
-  action ( features : instance ) executeRetirement result [1] $self;
+  action ( features : instance ) executeRetirement parameter ZA_RetirementParam result [1] $self;
 
   // Defaults
   determination setDefaults on modify { create; }
