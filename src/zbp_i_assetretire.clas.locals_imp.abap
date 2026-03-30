@@ -353,12 +353,23 @@ CLASS lhc_assetretire IMPLEMENTATION.
     DATA lv_year_code   TYPE c LENGTH 1.
     DATA lv_msg_ext     TYPE c LENGTH 500.
     DATA lv_user_msg    TYPE string.   " mensagem amigável para o toast (sem código HTTP)
+    DATA lv_currency    TYPE waers.
 
     " ── Parâmetros do dialog (escolha do usuário) ─────────────────────
     " Todos os registros da mesma invocação compartilham o mesmo %param
     DATA(lv_param_doc_date)  = VALUE #( keys[ 1 ]-%param-DocumentDate  OPTIONAL ).
     DATA(lv_param_post_date) = VALUE #( keys[ 1 ]-%param-PostingDate   OPTIONAL ).
     DATA(lv_param_val_date)  = VALUE #( keys[ 1 ]-%param-AssetValueDate OPTIONAL ).
+
+    " ── Buscar moeda de cada Company Code envolvido ──────────────
+    DATA lt_cc_currencies TYPE SORTED TABLE OF i_companycode WITH UNIQUE KEY CompanyCode.
+    IF lt_assets IS NOT INITIAL.
+      SELECT CompanyCode, Currency
+        FROM I_CompanyCode
+        FOR ALL ENTRIES IN @lt_assets
+        WHERE CompanyCode = @lt_assets-CompanyCode
+        INTO TABLE @lt_cc_currencies.
+    ENDIF.
 
     LOOP AT lt_assets INTO DATA(ls_asset).
       IF ls_asset-ProcessStatus = 'S' OR ls_asset-ProcessStatus = 'P'.
@@ -433,6 +444,8 @@ CLASS lhc_assetretire IMPLEMENTATION.
           ENDIF.
 
           " — Trim campos string ——
+          lv_currency = VALUE #( lt_cc_currencies[ CompanyCode = ls_asset-CompanyCode ]-Currency DEFAULT 'BRL' ).
+
           DATA(lv_ccode)      = CONV string( ls_asset-CompanyCode ).
           DATA(lv_ret_type)   = CONV string( ls_asset-RetirementType ).
           DATA(lv_hdr_text)   = CONV string( ls_asset-HeaderText ).
@@ -493,7 +506,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
             ls_post_req_full-fixed_asset_retirement_type = '1'.
             ls_post_req_full-revenue_type               = '1'.
             ls_post_req_full-revenue_amount             = '0.01'.
-            ls_post_req_full-fxd_ast_rtrmt_revn_trans_crcy = 'BRL'.
+            ls_post_req_full-fxd_ast_rtrmt_revn_trans_crcy = lv_currency.
             ls_post_req_full-currency_role              = '10'.
             ls_post_req_full-document_header_text       = lv_hdr_text.
 
@@ -513,7 +526,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
             ls_post_req-fixed_asset_retirement_type = '1'.
             ls_post_req-revenue_type               = '1'.
             ls_post_req-revenue_amount             = '0.01'.
-            ls_post_req-fxd_ast_rtrmt_revn_trans_crcy = 'BRL'.
+            ls_post_req-fxd_ast_rtrmt_revn_trans_crcy = lv_currency.
             ls_post_req-currency_role              = '10'.
             ls_post_req-ratio_in_percent           = ls_asset-RetirementRatio.
             ls_post_req-fixed_asset_year_of_acqn_code = lv_year_code.
