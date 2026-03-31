@@ -371,6 +371,99 @@ CLASS lhc_assetretire IMPLEMENTATION.
         INTO TABLE @lt_cc_currencies.
     ENDIF.
 
+    " ── Variáveis de conexão HTTP (reutilizadas no loop) ─────────
+    DATA lo_client      TYPE REF TO if_web_http_client.
+    DATA lv_csrf_token  TYPE string.
+    DATA lo_request     TYPE REF TO if_web_http_request.
+    DATA lo_response    TYPE REF TO if_web_http_response.
+    DATA lv_status_code TYPE i.
+    DATA lv_body        TYPE string.
+    DATA lv_json        TYPE string.
+    DATA lv_is_html     TYPE abap_bool.
+    DATA lv_connection_error     TYPE abap_bool.
+    DATA lv_connection_error_msg TYPE string.
+
+    " ── Criar HTTP client e buscar CSRF Token UMA VEZ ────────────
+    TRY.
+        DATA(lo_dest) = cl_http_destination_provider=>create_by_comm_arrangement(
+          comm_scenario  = 'ZCS_BAIXAIMOBILIZADO'
+          service_id     = 'ZBAIXAR_IMOBILIZADO_REST'
+        ).
+        lo_client = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
+
+        DATA(lo_req_csrf) = lo_client->get_http_request( ).
+        lo_req_csrf->set_uri_path(
+          '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/'
+        ).
+        lo_req_csrf->set_header_field( i_name = 'x-csrf-token' i_value = 'fetch' ).
+        lo_req_csrf->set_header_field( i_name = 'Accept'       i_value = 'application/json' ).
+        DATA(lo_resp_csrf) = lo_client->execute( if_web_http_client=>head ).
+        lv_csrf_token = lo_resp_csrf->get_header_field( 'x-csrf-token' ).
+
+      CATCH cx_http_dest_provider_error INTO DATA(lx_dest_init).
+        lv_connection_error = abap_true.
+        lv_connection_error_msg = |[DEST] { lx_dest_init->get_text( ) }|.
+      CATCH cx_web_http_client_error INTO DATA(lx_http_init).
+        lv_connection_error = abap_true.
+        lv_connection_error_msg = |[HTTP] { lx_http_init->get_text( ) }|.
+      CATCH cx_root INTO DATA(lx_root_init).
+        lv_connection_error = abap_true.
+        lv_connection_error_msg = |[EXC] { lx_root_init->get_text( ) }|.
+    ENDTRY.
+
+    " ── Tipos de payload (declarados fora do loop) ───────────────
+    TYPES:
+      BEGIN OF ty_post_req_full,
+        reference_document_item             TYPE string,
+        business_transaction_type           TYPE string,
+        company_code                        TYPE string,
+        master_fixed_asset                  TYPE string,
+        fixed_asset                         TYPE string,
+        document_date                       TYPE string,
+        posting_date                        TYPE string,
+        asset_value_date                    TYPE string,
+        fixed_asset_retirement_type         TYPE string,
+        revenue_type                        TYPE string,           " → FxdAstRetirementRevenueType
+        revenue_amount                      TYPE p LENGTH 10 DECIMALS 2, " → AstRevenueAmountInTransCrcy
+        fxd_ast_rtrmt_revn_trans_crcy       TYPE string,           " nome exato da API
+        currency_role                       TYPE string,           " → FxdAstRtrmtRevnCurrencyRole
+        fxd_ast_retirement_trans_crcy       TYPE string,           " moeda da transação de baixa
+        document_header_text                TYPE string,
+      END OF ty_post_req_full.
+
+    TYPES:
+      BEGIN OF ty_post_req,
+        reference_document_item             TYPE string,
+        business_transaction_type           TYPE string,
+        company_code                        TYPE string,
+        master_fixed_asset                  TYPE string,
+        fixed_asset                         TYPE string,
+        document_date                       TYPE string,
+        posting_date                        TYPE string,
+        asset_value_date                    TYPE string,
+        fixed_asset_retirement_type         TYPE string,
+        revenue_type                        TYPE string,           " → FxdAstRetirementRevenueType
+        revenue_amount                      TYPE p LENGTH 10 DECIMALS 2, " → AstRevenueAmountInTransCrcy
+        fxd_ast_rtrmt_revn_trans_crcy       TYPE string,           " nome exato da API
+        currency_role                       TYPE string,           " → FxdAstRtrmtRevnCurrencyRole
+        fxd_ast_retirement_trans_crcy       TYPE string,           " moeda da transação de baixa
+        ratio_in_percent                    TYPE p LENGTH 5 DECIMALS 2,
+        fixed_asset_year_of_acqn_code       TYPE string,
+        document_header_text                TYPE string,
+      END OF ty_post_req.
+
+    DATA ls_post_req_full TYPE ty_post_req_full.
+    DATA ls_post_req      TYPE ty_post_req.
+    DATA lv_doc_date  TYPE string.
+    DATA lv_post_date TYPE string.
+    DATA lv_val_date  TYPE string.
+    DATA lv_master    TYPE string.
+    DATA lv_subnr     TYPE string.
+    DATA lv_ccode     TYPE string.
+    DATA lv_ret_type  TYPE string.
+    DATA lv_hdr_text  TYPE string.
+    DATA lv_item_text TYPE string.
+
     LOOP AT lt_assets INTO DATA(ls_asset).
       IF ls_asset-ProcessStatus = 'S' OR ls_asset-ProcessStatus = 'P'.
         CONTINUE.
@@ -378,274 +471,246 @@ CLASS lhc_assetretire IMPLEMENTATION.
 
       " ── Reset obrigatório a cada iteração ──────────────────────────────
       CLEAR: lv_proc_status, lv_proc_msg, lv_ref_doc,
-             lv_year_code, lv_msg_ext, lv_user_msg.
+             lv_year_code, lv_msg_ext, lv_user_msg, lv_is_html,
+             ls_post_req_full, ls_post_req, lv_json.
       lv_proc_status = 'P'. " provisório — indica em processamento
 
-      TRY.
-          DATA(lo_dest) = cl_http_destination_provider=>create_by_comm_arrangement(
-            comm_scenario  = 'ZCS_BAIXAIMOBILIZADO'
-            service_id     = 'ZBAIXAR_IMOBILIZADO_REST'
-          ).
+      " ── Se conexão falhou, marca todos como erro ───────────────────────
+      IF lv_connection_error = abap_true.
+        lv_proc_status = 'E'.
+        lv_proc_msg    = lv_connection_error_msg.
+        lv_user_msg    = 'Falha na conexão com o sistema de imobilizado. Contate o administrador.'.
+        IF strlen( lv_proc_msg ) > 512. lv_proc_msg = lv_proc_msg+0(512). ENDIF.
+      ELSE.
+        TRY.
+            " ── Montar payload e enviar POST ──────────────────────────────
 
-          DATA(lo_client)  = cl_web_http_client_manager=>create_by_http_destination( lo_dest ).
-
-          " ── STEP 1: Fetch CSRF Token (obrigatório para POST no SAP OData v4) ──
-          DATA(lo_req_csrf) = lo_client->get_http_request( ).
-          lo_req_csrf->set_uri_path(
-            '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/'
-          ).
-          lo_req_csrf->set_header_field( i_name = 'x-csrf-token' i_value = 'fetch' ).
-          lo_req_csrf->set_header_field( i_name = 'Accept'       i_value = 'application/json' ).
-
-          DATA(lo_resp_csrf)  = lo_client->execute( if_web_http_client=>head ).
-          DATA(lv_csrf_token) = lo_resp_csrf->get_header_field( 'x-csrf-token' ).
-
-          " ── STEP 2: Montar payload e enviar POST ──────────────────────────────
-          DATA(lo_request) = lo_client->get_http_request( ).
-
-          " Prioridade de datas:
-          "   1) Parâmetro do dialog (escolha global do usuário ao acionar a action)
-          "   2) Valor já editado individualmente no registro do ativo
-          "   3) Data do sistema (fallback)
-          IF lv_param_doc_date IS NOT INITIAL AND lv_param_doc_date <> '00000000'.
-            ls_asset-DocumentDate = lv_param_doc_date.
-          ELSEIF ls_asset-DocumentDate IS INITIAL OR ls_asset-DocumentDate = '00000000'.
-            ls_asset-DocumentDate = cl_abap_context_info=>get_system_date( ).
-          ENDIF.
-
-          IF lv_param_post_date IS NOT INITIAL AND lv_param_post_date <> '00000000'.
-            ls_asset-PostingDate = lv_param_post_date.
-          ELSEIF ls_asset-PostingDate IS INITIAL OR ls_asset-PostingDate = '00000000'.
-            ls_asset-PostingDate = cl_abap_context_info=>get_system_date( ).
-          ENDIF.
-
-          IF lv_param_val_date IS NOT INITIAL AND lv_param_val_date <> '00000000'.
-            ls_asset-AssetValueDate = lv_param_val_date.
-          ELSEIF ls_asset-AssetValueDate IS INITIAL OR ls_asset-AssetValueDate = '00000000'.
-            ls_asset-AssetValueDate = cl_abap_context_info=>get_system_date( ).
-          ENDIF.
-
-          DATA(lv_doc_date)  = |{ ls_asset-DocumentDate+0(4) }-{ ls_asset-DocumentDate+4(2) }-{ ls_asset-DocumentDate+6(2) }|.
-          DATA(lv_post_date) = |{ ls_asset-PostingDate+0(4) }-{ ls_asset-PostingDate+4(2) }-{ ls_asset-PostingDate+6(2) }|.
-          DATA(lv_val_date)  = |{ ls_asset-AssetValueDate+0(4) }-{ ls_asset-AssetValueDate+4(2) }-{ ls_asset-AssetValueDate+6(2) }|.
-
-          " MasterFixedAsset MaxLength=12, FixedAsset MaxLength=4 — formato interno (com zeros)
-          DATA(lv_master) = |{ ls_asset-MasterFixedAsset ALPHA = IN }|.
-          DATA(lv_subnr)  = |{ ls_asset-FixedAsset ALPHA = OUT }|.  " sem zeros → "0000" vira "0"
-          CONDENSE: lv_master, lv_subnr.
-
-          " FixedAssetYearOfAcqnCode: 'P'=Prior Year / 'C'=Current Year
-          lv_sys_date = cl_abap_context_info=>get_system_date( ).
-          IF ls_asset-AcquisitionDate IS INITIAL OR
-             ls_asset-AcquisitionDate(4) < lv_sys_date(4).
-            lv_year_code = 'P'.
-          ELSE.
-            lv_year_code = 'C'.
-          ENDIF.
-
-          " — Trim campos string ——
-          lv_currency = VALUE #( lt_cc_currencies[ CompanyCode = ls_asset-CompanyCode ]-Currency DEFAULT 'BRL' ).
-
-          DATA(lv_ccode)      = CONV string( ls_asset-CompanyCode ).
-          DATA(lv_ret_type)   = CONV string( ls_asset-RetirementType ).
-          DATA(lv_hdr_text)   = CONV string( ls_asset-HeaderText ).
-          DATA(lv_item_text)  = CONV string( ls_asset-ItemText ).
-          CONDENSE: lv_ccode, lv_ret_type, lv_hdr_text, lv_item_text.
-
-          TYPES:
-            BEGIN OF ty_post_req_full,
-              reference_document_item             TYPE string,
-              business_transaction_type           TYPE string,
-              company_code                        TYPE string,
-              master_fixed_asset                  TYPE string,
-              fixed_asset                         TYPE string,
-              document_date                       TYPE string,
-              posting_date                        TYPE string,
-              asset_value_date                    TYPE string,
-              fixed_asset_retirement_type         TYPE string,
-              revenue_type                        TYPE string,           " → FxdAstRetirementRevenueType
-              revenue_amount                      TYPE p LENGTH 10 DECIMALS 2, " → AstRevenueAmountInTransCrcy
-              fxd_ast_rtrmt_revn_trans_crcy       TYPE string,           " nome exato da API
-              currency_role                       TYPE string,           " → FxdAstRtrmtRevnCurrencyRole
-              document_header_text                TYPE string,
-            END OF ty_post_req_full.
-
-          TYPES:
-            BEGIN OF ty_post_req,
-              reference_document_item             TYPE string,
-              business_transaction_type           TYPE string,
-              company_code                        TYPE string,
-              master_fixed_asset                  TYPE string,
-              fixed_asset                         TYPE string,
-              document_date                       TYPE string,
-              posting_date                        TYPE string,
-              asset_value_date                    TYPE string,
-              fixed_asset_retirement_type         TYPE string,
-              revenue_type                        TYPE string,           " → FxdAstRetirementRevenueType
-              revenue_amount                      TYPE p LENGTH 10 DECIMALS 2, " → AstRevenueAmountInTransCrcy
-              fxd_ast_rtrmt_revn_trans_crcy       TYPE string,           " nome exato da API
-              currency_role                       TYPE string,           " → FxdAstRtrmtRevnCurrencyRole
-              ratio_in_percent                    TYPE p LENGTH 5 DECIMALS 2,
-              fixed_asset_year_of_acqn_code       TYPE string,
-              document_header_text                TYPE string,
-            END OF ty_post_req.
-
-          DATA ls_post_req_full TYPE ty_post_req_full.
-          DATA ls_post_req TYPE ty_post_req.
-          DATA lv_json TYPE string.
-
-          IF lv_ret_type = '1'.
-            ls_post_req_full-reference_document_item    = '1'.
-            ls_post_req_full-business_transaction_type  = 'RA20'.
-            ls_post_req_full-company_code               = lv_ccode.
-            ls_post_req_full-master_fixed_asset         = lv_master.
-            ls_post_req_full-fixed_asset                = lv_subnr.
-            ls_post_req_full-document_date              = lv_doc_date.
-            ls_post_req_full-posting_date               = lv_post_date.
-            ls_post_req_full-asset_value_date           = lv_val_date.
-            ls_post_req_full-fixed_asset_retirement_type = '1'.
-            ls_post_req_full-revenue_type               = '1'.
-            ls_post_req_full-revenue_amount             = '0.01'.
-            ls_post_req_full-fxd_ast_rtrmt_revn_trans_crcy = lv_currency.
-            ls_post_req_full-currency_role              = '10'.
-            ls_post_req_full-document_header_text       = lv_hdr_text.
-
-            lv_json = xco_cp_json=>data->from_abap( ls_post_req_full )->apply( VALUE #(
-              ( xco_cp_json=>transformation->underscore_to_pascal_case )
-            ) )->to_string( ).
-
-          ELSE.
-            ls_post_req-reference_document_item    = '1'.
-            ls_post_req-business_transaction_type  = 'RA20'.
-            ls_post_req-company_code               = lv_ccode.
-            ls_post_req-master_fixed_asset         = lv_master.
-            ls_post_req-fixed_asset                = lv_subnr.
-            ls_post_req-document_date              = lv_doc_date.
-            ls_post_req-posting_date               = lv_post_date.
-            ls_post_req-asset_value_date           = lv_val_date.
-            ls_post_req-fixed_asset_retirement_type = '1'.
-            ls_post_req-revenue_type               = '1'.
-            ls_post_req-revenue_amount             = '0.01'.
-            ls_post_req-fxd_ast_rtrmt_revn_trans_crcy = lv_currency.
-            ls_post_req-currency_role              = '10'.
-            ls_post_req-ratio_in_percent           = ls_asset-RetirementRatio.
-            ls_post_req-fixed_asset_year_of_acqn_code = lv_year_code.
-            ls_post_req-document_header_text       = lv_hdr_text.
-
-            lv_json = xco_cp_json=>data->from_abap( ls_post_req )->apply( VALUE #(
-              ( xco_cp_json=>transformation->underscore_to_pascal_case )
-            ) )->to_string( ).
-
-            " Converter nomes curtos mapeados para o nome real da API devido ao limite de 30 chars do ABAP
-            REPLACE ALL OCCURRENCES OF '"RatioInPercent"' IN lv_json WITH '"FxdAstRetirementRatioInPercent"'.
-          ENDIF.
-
-          REPLACE ALL OCCURRENCES OF '"RevenueType"'   IN lv_json WITH '"FxdAstRetirementRevenueType"'.
-          REPLACE ALL OCCURRENCES OF '"RevenueAmount"' IN lv_json WITH '"AstRevenueAmountInTransCrcy"'.
-          REPLACE ALL OCCURRENCES OF '"CurrencyRole"'  IN lv_json WITH '"FxdAstRtrmtRevnCurrencyRole"'.
-          REPLACE ALL OCCURRENCES OF '"DocumentHeaderText"' IN lv_json WITH '"AccountingDocumentHeaderText"'.
-
-          lo_request->set_uri_path(
-            '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/FixedAssetRetirement/SAP__self.Post'
-          ).
-          lo_request->set_header_field( i_name = 'Content-Type'  i_value = 'application/json' ).
-          lo_request->set_header_field( i_name = 'Accept'        i_value = 'application/json' ).
-          lo_request->set_header_field( i_name = 'x-csrf-token'  i_value = lv_csrf_token ).
-          lo_request->set_text( lv_json ).
-
-          DATA(lo_response)    = lo_client->execute( if_web_http_client=>post ).
-          DATA(lv_status_code) = lo_response->get_status( )-code.
-          DATA(lv_body)        = lo_response->get_text( ).
-
-          lo_client->close( ).
-
-          IF lv_status_code >= 200 AND lv_status_code < 300.
-            " ── SUCESSO ────────────────────────────────────────────────
-            lv_proc_status = 'S'.
-            lv_proc_msg    = 'Baixa realizada com sucesso'.
-            lv_user_msg    = 'Baixa realizada com sucesso'.
-            TRY.
-                FIND REGEX '"ReferenceDocument"\s*:\s*"([^"]*)"' IN lv_body SUBMATCHES lv_ref_doc.
-              CATCH cx_root ##NO_HANDLER.
-            ENDTRY.
-          ELSEIF lv_status_code = 401.
-            lv_proc_status = 'E'.
-            lv_proc_msg    = 'Autenticacao falhou (401) - atualize a senha no acordo ZCS_BAIXAIMOBILIZADO'.
-            lv_user_msg    = 'Não foi possível processar a baixa: credenciais de integração inválidas. '
-                          && 'Contate o administrador do sistema para renovar a senha de comunicação.'.
-          ELSEIF lv_status_code = 403.
-            lv_proc_status = 'E'.
-            lv_proc_msg    = 'Sem autorizacao (403) - atribua role de imobilizado ao usuario de comunicacao'.
-            lv_user_msg    = 'Não foi possível processar a baixa: usuário de integração sem permissão. '
-                          && 'Contate o administrador do sistema para verificar as autorizações.'.
-          ELSE.
-            " ── OUTROS ERROS HTTP ───────────────────────────────────────
-            lv_proc_status = 'E'.
-
-            " Detecta resposta HTML (pagina de login SAP) — nao exibir HTML bruto
-            DATA lv_is_html TYPE abap_bool.
-            IF lv_body CP '*<html*' OR lv_body CP '*<!DOCTYPE*'.
-              lv_is_html = abap_true.
+            " Prioridade de datas:
+            "   1) Parâmetro do dialog (escolha global do usuário ao acionar a action)
+            "   2) Valor já editado individualmente no registro do ativo
+            "   3) Data do sistema (fallback)
+            IF lv_param_doc_date IS NOT INITIAL AND lv_param_doc_date <> '00000000'.
+              ls_asset-DocumentDate = lv_param_doc_date.
+            ELSEIF ls_asset-DocumentDate IS INITIAL OR ls_asset-DocumentDate = '00000000'.
+              ls_asset-DocumentDate = cl_abap_context_info=>get_system_date( ).
             ENDIF.
 
-            IF lv_is_html = abap_false.
-              " 1) Tenta pegar a mensagem mais específica do array details[]
-              FIND REGEX '"details"\s*:\s*\[\s*\{[^{]*"message"\s*:\s*"([^"]{1,400})"'
-                IN lv_body SUBMATCHES lv_msg_ext.
-              " 2) Fallback: mensagem principal do objeto error{}
-              IF lv_msg_ext IS INITIAL.
-                FIND REGEX '"error"\s*:\s*\{"[^"]*"\s*:\s*"[^"]*"\s*,\s*"message"\s*:\s*"([^"]{1,400})"'
-                  IN lv_body SUBMATCHES lv_msg_ext.
-              ENDIF.
-              " 3) Fallback genérico: qualquer campo message no JSON
-              IF lv_msg_ext IS INITIAL.
-                FIND REGEX '"message"\s*:\s*"([^"]{1,400})"'
-                  IN lv_body SUBMATCHES lv_msg_ext.
-              ENDIF.
+            IF lv_param_post_date IS NOT INITIAL AND lv_param_post_date <> '00000000'.
+              ls_asset-PostingDate = lv_param_post_date.
+            ELSEIF ls_asset-PostingDate IS INITIAL OR ls_asset-PostingDate = '00000000'.
+              ls_asset-PostingDate = cl_abap_context_info=>get_system_date( ).
             ENDIF.
 
-            IF lv_msg_ext IS NOT INITIAL.
-              " Traduz: full_msg → ProcessMsg (coluna da lista), toast → popup curto
-              DATA(ls_tr) = translate_api_error( CONV string( lv_msg_ext ) ).
-              lv_proc_msg = |[{ lv_status_code }] { ls_tr-full_msg }|.
-              lv_user_msg = ls_tr-toast.
-            ELSEIF lv_is_html = abap_true.
-              lv_proc_msg = |[{ lv_status_code }] Resposta HTML - verifique acordo de comunicacao|.
-              lv_user_msg = 'Não foi possível conectar ao sistema de imobilizado. '
-                          && 'Contate o administrador para verificar a configuração de comunicação.'.
+            IF lv_param_val_date IS NOT INITIAL AND lv_param_val_date <> '00000000'.
+              ls_asset-AssetValueDate = lv_param_val_date.
+            ELSEIF ls_asset-AssetValueDate IS INITIAL OR ls_asset-AssetValueDate = '00000000'.
+              ls_asset-AssetValueDate = cl_abap_context_info=>get_system_date( ).
+            ENDIF.
+
+            lv_doc_date  = |{ ls_asset-DocumentDate+0(4) }-{ ls_asset-DocumentDate+4(2) }-{ ls_asset-DocumentDate+6(2) }|.
+            lv_post_date = |{ ls_asset-PostingDate+0(4) }-{ ls_asset-PostingDate+4(2) }-{ ls_asset-PostingDate+6(2) }|.
+            lv_val_date  = |{ ls_asset-AssetValueDate+0(4) }-{ ls_asset-AssetValueDate+4(2) }-{ ls_asset-AssetValueDate+6(2) }|.
+
+            " MasterFixedAsset MaxLength=12, FixedAsset MaxLength=4 — formato interno (com zeros)
+            lv_master = |{ ls_asset-MasterFixedAsset ALPHA = IN }|.
+            lv_subnr  = |{ ls_asset-FixedAsset ALPHA = OUT }|.  " sem zeros → "0000" vira "0"
+            CONDENSE: lv_master, lv_subnr.
+
+            " FixedAssetYearOfAcqnCode: 'P'=Prior Year / 'C'=Current Year
+            lv_sys_date = cl_abap_context_info=>get_system_date( ).
+            IF ls_asset-AcquisitionDate IS INITIAL OR
+               ls_asset-AcquisitionDate(4) < lv_sys_date(4).
+              lv_year_code = 'P'.
             ELSE.
-              DATA(lv_raw) = |[{ lv_status_code }] { lv_body }|.
-              IF strlen( lv_raw ) > 512.
-                lv_proc_msg = lv_raw+0(512).
-              ELSE.
-                lv_proc_msg = lv_raw.
-              ENDIF.
-              lv_user_msg = 'Não foi possível processar a baixa devido a um erro inesperado. '
-                          && 'Contate o suporte técnico informando o número do ativo e a data da tentativa.'.
+              lv_year_code = 'C'.
             ENDIF.
-          ENDIF.
 
-          " Garante lv_user_msg preenchido como fallback
-          IF lv_user_msg IS INITIAL.
-            lv_user_msg = CONV string( lv_proc_msg ).
-          ENDIF.
+            " — Trim campos string ——
+            lv_currency = VALUE #( lt_cc_currencies[ CompanyCode = ls_asset-CompanyCode ]-Currency DEFAULT 'BRL' ).
 
-        CATCH cx_http_dest_provider_error INTO DATA(lx_dest).
-          lv_proc_status = 'E'.
-          lv_proc_msg    = |[DEST] { lx_dest->get_text( ) }|.
-          lv_user_msg    = |Erro de destino: { lx_dest->get_text( ) }|.
-          IF strlen( lv_proc_msg ) > 512. lv_proc_msg = lv_proc_msg+0(512). ENDIF.
-        CATCH cx_web_http_client_error INTO DATA(lx_http).
-          lv_proc_status = 'E'.
-          lv_proc_msg    = |[HTTP] { lx_http->get_text( ) }|.
-          lv_user_msg    = |Erro de comunicacao HTTP: { lx_http->get_text( ) }|.
-          IF strlen( lv_proc_msg ) > 512. lv_proc_msg = lv_proc_msg+0(512). ENDIF.
-        CATCH cx_root INTO DATA(lx_root).
-          lv_proc_status = 'E'.
-          lv_proc_msg    = |[EXC] { lx_root->get_text( ) }|.
-          lv_user_msg    = |Erro inesperado: { lx_root->get_text( ) }|.
-          IF strlen( lv_proc_msg ) > 512. lv_proc_msg = lv_proc_msg+0(512). ENDIF.
-      ENDTRY.
+            lv_ccode     = CONV string( ls_asset-CompanyCode ).
+            lv_ret_type  = CONV string( ls_asset-RetirementType ).
+            lv_hdr_text  = CONV string( ls_asset-HeaderText ).
+            lv_item_text = CONV string( ls_asset-ItemText ).
+            CONDENSE: lv_ccode, lv_ret_type, lv_hdr_text, lv_item_text.
+
+            IF lv_ret_type = '1'.
+              ls_post_req_full-reference_document_item    = '1'.
+              ls_post_req_full-business_transaction_type  = 'RA20'.
+              ls_post_req_full-company_code               = lv_ccode.
+              ls_post_req_full-master_fixed_asset         = lv_master.
+              ls_post_req_full-fixed_asset                = lv_subnr.
+              ls_post_req_full-document_date              = lv_doc_date.
+              ls_post_req_full-posting_date               = lv_post_date.
+              ls_post_req_full-asset_value_date           = lv_val_date.
+              ls_post_req_full-fixed_asset_retirement_type = '1'.
+              ls_post_req_full-revenue_type               = '1'.
+              ls_post_req_full-revenue_amount             = '0.01'.
+              ls_post_req_full-fxd_ast_rtrmt_revn_trans_crcy = lv_currency.
+              ls_post_req_full-currency_role              = '10'.
+              ls_post_req_full-fxd_ast_retirement_trans_crcy = lv_currency.
+              ls_post_req_full-document_header_text       = lv_hdr_text.
+
+              lv_json = xco_cp_json=>data->from_abap( ls_post_req_full )->apply( VALUE #(
+                ( xco_cp_json=>transformation->underscore_to_pascal_case )
+              ) )->to_string( ).
+
+            ELSE.
+              ls_post_req-reference_document_item    = '1'.
+              ls_post_req-business_transaction_type  = 'RA20'.
+              ls_post_req-company_code               = lv_ccode.
+              ls_post_req-master_fixed_asset         = lv_master.
+              ls_post_req-fixed_asset                = lv_subnr.
+              ls_post_req-document_date              = lv_doc_date.
+              ls_post_req-posting_date               = lv_post_date.
+              ls_post_req-asset_value_date           = lv_val_date.
+              ls_post_req-fixed_asset_retirement_type = '1'.
+              ls_post_req-revenue_type               = '1'.
+              ls_post_req-revenue_amount             = '0.01'.
+              ls_post_req-fxd_ast_rtrmt_revn_trans_crcy = lv_currency.
+              ls_post_req-currency_role              = '10'.
+              ls_post_req-fxd_ast_retirement_trans_crcy = lv_currency.
+              ls_post_req-ratio_in_percent           = ls_asset-RetirementRatio.
+              ls_post_req-fixed_asset_year_of_acqn_code = lv_year_code.
+              ls_post_req-document_header_text       = lv_hdr_text.
+
+              lv_json = xco_cp_json=>data->from_abap( ls_post_req )->apply( VALUE #(
+                ( xco_cp_json=>transformation->underscore_to_pascal_case )
+              ) )->to_string( ).
+
+              " Converter nomes curtos mapeados para o nome real da API devido ao limite de 30 chars do ABAP
+              REPLACE ALL OCCURRENCES OF '"RatioInPercent"' IN lv_json WITH '"FxdAstRetirementRatioInPercent"'.
+            ENDIF.
+
+            REPLACE ALL OCCURRENCES OF '"RevenueType"'   IN lv_json WITH '"FxdAstRetirementRevenueType"'.
+            REPLACE ALL OCCURRENCES OF '"RevenueAmount"' IN lv_json WITH '"AstRevenueAmountInTransCrcy"'.
+            REPLACE ALL OCCURRENCES OF '"CurrencyRole"'  IN lv_json WITH '"FxdAstRtrmtRevnCurrencyRole"'.
+            REPLACE ALL OCCURRENCES OF '"DocumentHeaderText"' IN lv_json WITH '"AccountingDocumentHeaderText"'.
+
+            lo_request = lo_client->get_http_request( ).
+            lo_request->set_uri_path(
+              '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/FixedAssetRetirement/SAP__self.Post'
+            ).
+            lo_request->set_header_field( i_name = 'Content-Type'  i_value = 'application/json' ).
+            lo_request->set_header_field( i_name = 'Accept'        i_value = 'application/json' ).
+            lo_request->set_header_field( i_name = 'x-csrf-token'  i_value = lv_csrf_token ).
+            lo_request->set_text( lv_json ).
+
+            lo_response    = lo_client->execute( if_web_http_client=>post ).
+            lv_status_code = lo_response->get_status( )-code.
+            lv_body        = lo_response->get_text( ).
+
+            " ── Retry CSRF em caso de 403 (token expirado) ────────────────
+            IF lv_status_code = 403.
+              TRY.
+                  DATA(lo_req_csrf_retry) = lo_client->get_http_request( ).
+                  lo_req_csrf_retry->set_uri_path(
+                    '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/'
+                  ).
+                  lo_req_csrf_retry->set_header_field( i_name = 'x-csrf-token' i_value = 'fetch' ).
+                  lo_req_csrf_retry->set_header_field( i_name = 'Accept'       i_value = 'application/json' ).
+                  DATA(lo_resp_csrf_retry) = lo_client->execute( if_web_http_client=>head ).
+                  lv_csrf_token = lo_resp_csrf_retry->get_header_field( 'x-csrf-token' ).
+
+                  lo_request = lo_client->get_http_request( ).
+                  lo_request->set_uri_path(
+                    '/sap/opu/odata4/sap/api_fixedassetretirement/srvd_a2x/sap/fixedassetretirement/0001/FixedAssetRetirement/SAP__self.Post'
+                  ).
+                  lo_request->set_header_field( i_name = 'Content-Type'  i_value = 'application/json' ).
+                  lo_request->set_header_field( i_name = 'Accept'        i_value = 'application/json' ).
+                  lo_request->set_header_field( i_name = 'x-csrf-token'  i_value = lv_csrf_token ).
+                  lo_request->set_text( lv_json ).
+
+                  lo_response    = lo_client->execute( if_web_http_client=>post ).
+                  lv_status_code = lo_response->get_status( )-code.
+                  lv_body        = lo_response->get_text( ).
+                CATCH cx_root ##NO_HANDLER.
+              ENDTRY.
+            ENDIF.
+
+            IF lv_status_code >= 200 AND lv_status_code < 300.
+              " ── SUCESSO ────────────────────────────────────────────────
+              lv_proc_status = 'S'.
+              lv_proc_msg    = 'Baixa realizada com sucesso'.
+              lv_user_msg    = 'Baixa realizada com sucesso'.
+              TRY.
+                  FIND REGEX '"ReferenceDocument"\s*:\s*"([^"]*)"' IN lv_body SUBMATCHES lv_ref_doc.
+                CATCH cx_root ##NO_HANDLER.
+              ENDTRY.
+            ELSEIF lv_status_code = 401.
+              lv_proc_status = 'E'.
+              lv_proc_msg    = 'Autenticacao falhou (401) - atualize a senha no acordo ZCS_BAIXAIMOBILIZADO'.
+              lv_user_msg    = 'Não foi possível processar a baixa: credenciais de integração inválidas. '
+                            && 'Contate o administrador do sistema para renovar a senha de comunicação.'.
+            ELSEIF lv_status_code = 403.
+              lv_proc_status = 'E'.
+              lv_proc_msg    = 'Sem autorizacao (403) - atribua role de imobilizado ao usuario de comunicacao'.
+              lv_user_msg    = 'Não foi possível processar a baixa: usuário de integração sem permissão. '
+                            && 'Contate o administrador do sistema para verificar as autorizações.'.
+            ELSE.
+              " ── OUTROS ERROS HTTP ───────────────────────────────────────
+              lv_proc_status = 'E'.
+
+              " Detecta resposta HTML (pagina de login SAP) — nao exibir HTML bruto
+              CLEAR lv_is_html.
+              IF lv_body CP '*<html*' OR lv_body CP '*<!DOCTYPE*'.
+                lv_is_html = abap_true.
+              ENDIF.
+
+              IF lv_is_html = abap_false.
+                " 1) Tenta pegar a mensagem mais específica do array details[]
+                FIND REGEX '"details"\s*:\s*\[\s*\{[^{]*"message"\s*:\s*"([^"]{1,400})"'
+                  IN lv_body SUBMATCHES lv_msg_ext.
+                " 2) Fallback: mensagem principal do objeto error{}
+                IF lv_msg_ext IS INITIAL.
+                  FIND REGEX '"error"\s*:\s*\{"[^"]*"\s*:\s*"[^"]*"\s*,\s*"message"\s*:\s*"([^"]{1,400})"'
+                    IN lv_body SUBMATCHES lv_msg_ext.
+                ENDIF.
+                " 3) Fallback genérico: qualquer campo message no JSON
+                IF lv_msg_ext IS INITIAL.
+                  FIND REGEX '"message"\s*:\s*"([^"]{1,400})"'
+                    IN lv_body SUBMATCHES lv_msg_ext.
+                ENDIF.
+              ENDIF.
+
+              IF lv_msg_ext IS NOT INITIAL.
+                " Traduz: full_msg → ProcessMsg (coluna da lista), toast → popup curto
+                DATA(ls_tr) = translate_api_error( CONV string( lv_msg_ext ) ).
+                lv_proc_msg = |[{ lv_status_code }] { ls_tr-full_msg }|.
+                lv_user_msg = ls_tr-toast.
+              ELSEIF lv_is_html = abap_true.
+                lv_proc_msg = |[{ lv_status_code }] Resposta HTML - verifique acordo de comunicacao|.
+                lv_user_msg = 'Não foi possível conectar ao sistema de imobilizado. '
+                            && 'Contate o administrador para verificar a configuração de comunicação.'.
+              ELSE.
+                DATA(lv_raw) = |[{ lv_status_code }] { lv_body }|.
+                IF strlen( lv_raw ) > 512.
+                  lv_proc_msg = lv_raw+0(512).
+                ELSE.
+                  lv_proc_msg = lv_raw.
+                ENDIF.
+                lv_user_msg = 'Não foi possível processar a baixa devido a um erro inesperado. '
+                            && 'Contate o suporte técnico informando o número do ativo e a data da tentativa.'.
+              ENDIF.
+            ENDIF.
+
+            " Garante lv_user_msg preenchido como fallback
+            IF lv_user_msg IS INITIAL.
+              lv_user_msg = CONV string( lv_proc_msg ).
+            ENDIF.
+
+          CATCH cx_web_http_client_error INTO DATA(lx_http).
+            lv_proc_status = 'E'.
+            lv_proc_msg    = |[HTTP] { lx_http->get_text( ) }|.
+            lv_user_msg    = |Erro de comunicacao HTTP: { lx_http->get_text( ) }|.
+            IF strlen( lv_proc_msg ) > 512. lv_proc_msg = lv_proc_msg+0(512). ENDIF.
+          CATCH cx_root INTO DATA(lx_root).
+            lv_proc_status = 'E'.
+            lv_proc_msg    = |[EXC] { lx_root->get_text( ) }|.
+            lv_user_msg    = |Erro inesperado: { lx_root->get_text( ) }|.
+            IF strlen( lv_proc_msg ) > 512. lv_proc_msg = lv_proc_msg+0(512). ENDIF.
+        ENDTRY.
+      ENDIF.
 
       " ── Sempre persiste status + mensagem via UPDATE ──────────────────
       " NÃO emitir reported com severity-error aqui:
@@ -675,6 +740,14 @@ CLASS lhc_assetretire IMPLEMENTATION.
       ) TO reported-assetretire.
 
     ENDLOOP.
+
+    " ── Fechar HTTP client UMA VEZ após o loop ───────────────────
+    IF lo_client IS BOUND.
+      TRY.
+          lo_client->close( ).
+        CATCH cx_root ##NO_HANDLER.
+      ENDTRY.
+    ENDIF.
 
     " ── Persiste todas as atualizações de status ──────────────────────
     MODIFY ENTITIES OF zi_assetretire IN LOCAL MODE
