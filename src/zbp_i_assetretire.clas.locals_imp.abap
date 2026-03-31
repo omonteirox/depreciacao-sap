@@ -427,6 +427,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
         revenue_amount                      TYPE p LENGTH 10 DECIMALS 2, " → AstRevenueAmountInTransCrcy
         fxd_ast_rtrmt_revn_trans_crcy       TYPE string,           " nome exato da API
         currency_role                       TYPE string,           " → FxdAstRtrmtRevnCurrencyRole
+        fxd_ast_revn_detn_depr_area         TYPE string,           " área de depreciação p/ receita
         fxd_ast_retirement_trans_crcy       TYPE string,           " moeda da transação de baixa
         document_header_text                TYPE string,
       END OF ty_post_req_full.
@@ -446,6 +447,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
         revenue_amount                      TYPE p LENGTH 10 DECIMALS 2, " → AstRevenueAmountInTransCrcy
         fxd_ast_rtrmt_revn_trans_crcy       TYPE string,           " nome exato da API
         currency_role                       TYPE string,           " → FxdAstRtrmtRevnCurrencyRole
+        fxd_ast_revn_detn_depr_area         TYPE string,           " área de depreciação p/ receita
         fxd_ast_retirement_trans_crcy       TYPE string,           " moeda da transação de baixa
         ratio_in_percent                    TYPE p LENGTH 5 DECIMALS 2,
         fixed_asset_year_of_acqn_code       TYPE string,
@@ -548,6 +550,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
               ls_post_req_full-revenue_amount             = '0.01'.
               ls_post_req_full-fxd_ast_rtrmt_revn_trans_crcy = lv_currency.
               ls_post_req_full-currency_role              = '10'.
+              ls_post_req_full-fxd_ast_revn_detn_depr_area = '01'.
               ls_post_req_full-fxd_ast_retirement_trans_crcy = lv_currency.
               ls_post_req_full-document_header_text       = lv_hdr_text.
 
@@ -569,6 +572,7 @@ CLASS lhc_assetretire IMPLEMENTATION.
               ls_post_req-revenue_amount             = '0.01'.
               ls_post_req-fxd_ast_rtrmt_revn_trans_crcy = lv_currency.
               ls_post_req-currency_role              = '10'.
+              ls_post_req-fxd_ast_revn_detn_depr_area = '01'.
               ls_post_req-fxd_ast_retirement_trans_crcy = lv_currency.
               ls_post_req-ratio_in_percent           = ls_asset-RetirementRatio.
               ls_post_req-fixed_asset_year_of_acqn_code = lv_year_code.
